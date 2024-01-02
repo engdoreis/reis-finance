@@ -1,0 +1,21 @@
+Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result,Currency (Result),Total,Currency (Total),Withholding tax,Currency (Withholding tax),Stamp duty reserve tax,Currency (Stamp duty reserve tax),Notes,ID,Currency conversion fee,Currency (Currency conversion fee)
+Dividend (Ordinary),2023-01-16 14:39:06,US74164F1030,PRIM,"Primoris Services",1.0000000000,0.05,USD,Not available,,,0.04,"GBP",0.01,USD,,,,,,
+Limit sell,2023-03-16 15:15:51,US02079K3059,GOOGL,"Alphabet (Class A)",4.0000000000,100.03,USD,1.20926,0.23,"GBP",330.38,"GBP",,,,,,EOF2317965971,0.50,"GBP"
+Limit sell,2023-03-21 13:32:14,US02079K3059,GOOGL,"Alphabet (Class A)",4.0000000000,102.00,USD,1.22425,2.61,"GBP",332.76,"GBP",,,,,,EOF2323752158,0.50,"GBP"
+Dividend (Ordinary),2023-04-17 09:58:19,US74164F1030,PRIM,"Primoris Services",1.0000000000,0.05,USD,Not available,,,0.04,"GBP",0.01,USD,,,,,,
+Interest on cash,2023-06-24 21:11:49,,,,,,,,,,0.16,"GBP",,,,,"Interest on cash",d8fa0482-08d8-42a2-9368-743bfcedb760,,
+Interest on cash,2023-06-25 21:11:49,,,,,,,,,,0.15,"GBP",,,,,"Interest on cash",f5b4e5f7-a1a7-43e7-8555-166b1fee5b2e,,
+Market buy,2023-06-26 07:00:32,IE00BCRY6441,ERNS,"iShares GBP Ultrashort Bond (Dist)",17.0000000000,100.40,GBP,1.00000,,"GBP",1706.80,"GBP",,,,,,EOF3121805136,,
+Deposit,2023-06-26 09:20:22,,,,,,,,,,500.00,"GBP",,,,,"Transaction ID: f70419d6-7c12-406f-a2fe-a7456be16083",841ec73b-9018-4286-90eb-5bc064057126,,
+Market buy,2023-06-26 09:24:01,IE00BCRY6441,ERNS,"iShares GBP Ultrashort Bond (Dist)",116.0000000000,100.32,GBP,1.00000,,"GBP",11637.12,"GBP",,,,,,EOF3121828361,,
+Dividend (Dividends paid by us corporations),2023-07-17 11:51:34,US74164F1030,PRIM,"Primoris Services",1.0000000000,0.05,USD,Not available,,,0.04,"GBP",0.01,USD,,,,,,
+Deposit,2023-07-23 08:28:21,,,,,,,,,,1000.00,"GBP",,,,,"Transaction ID: c9ccf371-0872-40e6-98ef-fda1a528875e",3a9a2424-aedb-47d6-b597-a22fb204de9d,,
+Interest on cash,2023-07-23 21:11:09,,,,,,,,,,0.09,"GBP",,,,,"Interest on cash",24eb1c64-08be-4621-9081-a6477979da14,,
+Market buy,2023-07-24 07:00:32,IE00BCRY6441,ERNS,"iShares GBP Ultrashort Bond (Dist)",17.0000000000,100.74,GBP,1.00000,,"GBP",1712.58,"GBP",,,,,,EOF3184674650,,
+Deposit,2023-08-02 21:46:03,,,,,,,,,,1000.00,"GBP",,,,,"Transaction ID: 7363cc4e-380e-4010-bc8e-84ed3079ce1c",7b8b43fd-1132-4ce7-8dad-63f977b03868,,
+Market buy,2023-08-03 07:00:31,IE00BCRY6441,ERNS,"iShares GBP Ultrashort Bond (Dist)",17.0000000000,101.00,GBP,1.00000,,"GBP",1717.00,"GBP",,,,,,EOF3210383212,,
+Market sell,2023-08-03 13:30:09,US74164F1030,PRIM,"Primoris Services",1.0000000000,32.06,USD,1.26594,7.56,"GBP",25.28,"GBP",,,,,,EOF3210878955,0.04,"GBP"
+Interest on cash,2023-08-04 21:06:28,,,,,,,,,,0.01,"GBP",,,,,"Interest on cash",f4224cfe-f225-4e87-9dcd-6d70ba637b9b,,
+Interest on cash,2023-08-26 21:06:56,,,,,,,,,,0.01,"GBP",,,,,"Interest on cash",ac211e26-e4c3-450b-8ee3-a475b299ebe3,,
+Deposit,2023-09-01 11:03:13,,,,,,,,,,1000.00,"GBP",,,,,"Transaction ID: 46890663-49fe-4f63-9556-cc81d923785f",d572acac-5f0b-4cf4-8818-573fe596abb9,,
+Market buy,2023-09-01 11:24:26,IE00BCRY6441,ERNS,"iShares GBP Ultrashort Bond (Dist)",19.9715994000,101.41,GBP,1.00000,,"GBP",2025.32,"GBP",,,,,,EOF3263920187,,

@@ -1,0 +1,15 @@
+Action,Time,ISIN,Ticker,Name,No. of shares,Price / share,Currency (Price / share),Exchange rate,Result,Currency (Result),Total,Currency (Total),Withholding tax,Currency (Withholding tax),Stamp duty reserve tax,Currency (Stamp duty reserve tax),Notes,ID,Currency conversion fee,Currency (Currency conversion fee)
+Deposit,2022-08-30 09:17:59,,,,,,,,,,500.00,"GBP",,,,,"Transaction ID: 76374e96-6c49-4358-94e2-5e01bb351360",e72297ed-fc44-4d10-9aaa-1c234aa5cda7,,
+Market buy,2022-08-30 09:22:06,GB0031215220,CCL,"Carnival PLC",1.0000000000,744.00,GBX,100.00000,,"GBP",7.48,"GBP",,,0.04,"GBP",,EOF2032742393,,
+Deposit,2022-08-30 09:22:06,,,,,,,,,,7.48,"GBP",,,,,"Free Shares Promotion",8ae7b6a4-3526-4953-8c9c-46a08f309d52,,
+Market buy,2022-08-30 19:25:19,US74164F1030,PRIM,"Primoris Services",1.0000000000,20.72,USD,1.16655,,"GBP",17.79,"GBP",,,,,,EOF2033897922,0.03,"GBP"
+Limit buy,2022-09-16 13:30:11,US02079K3059,GOOGL,"Alphabet (Class A)",1.0000000000,101.91,USD,1.13920,,"GBP",89.59,"GBP",,,,,,EOF2054464781,0.13,"GBP"
+Deposit,2022-10-03 09:49:03,,,,,,,,,,1000.00,"GBP",,,,,"Transaction ID: 000b4805-12dd-4d7d-9c54-0da175dba2fa",82473be2-fa57-47ed-b193-7e88576dff64,,
+Market buy,2022-10-10 16:58:12,US02079K3059,GOOGL,"Alphabet (Class A)",1.0000000000,97.32,USD,1.10274,,"GBP",88.38,"GBP",,,,,,EOF2087132044,0.13,"GBP"
+Limit buy,2022-10-11 13:56:38,US02079K3059,GOOGL,"Alphabet (Class A)",1.0000000000,96.95,USD,1.10617,,"GBP",87.77,"GBP",,,,,,EOF2088431292,0.13,"GBP"
+Limit buy,2022-10-13 13:30:02,US02079K3059,GOOGL,"Alphabet (Class A)",1.0000000000,94.91,USD,1.11860,,"GBP",84.98,"GBP",,,,,,EOF2091614310,0.13,"GBP"
+Dividend (Ordinary),2022-10-17 08:13:07,US74164F1030,PRIM,"Primoris Services",1.0000000000,0.05,USD,Not available,,,0.05,"GBP",0.01,USD,,,,,,
+Limit buy,2022-11-01 19:11:27,US02079K3059,GOOGL,"Alphabet (Class A)",1.0000000000,91.00,USD,1.14795,,"GBP",79.39,"GBP",,,,,,EOF2119682677,0.12,"GBP"
+Deposit,2022-11-02 13:38:16,,,,,,,,,,1000.00,"GBP",,,,,"Transaction ID: b29db5ff-dbd8-434c-9c12-dddbd841d1dc",68c4228f-dc8f-4200-901e-db1eefa11b36,,
+Limit buy,2022-11-02 15:10:50,US02079K3059,GOOGL,"Alphabet (Class A)",1.0000000000,89.40,USD,1.14689,,"GBP",78.07,"GBP",,,,,,EOF2120692056,0.12,"GBP"
+Limit buy,2022-11-03 13:31:50,US02079K3059,GOOGL,"Alphabet (Class A)",2.0000000000,85.98,USD,1.11750,,"GBP",154.11,"GBP",,,,,,EOF2122658346,0.23,"GBP"
