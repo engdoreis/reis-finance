@@ -26,11 +26,15 @@ impl Broker for Trading212 {
                     .cast(DataType::Date)
                     .alias(Columns::Date.into()),
                 col("Action").alias(Columns::Action.into()),
-                col("Ticker").alias(Columns::Ticker.into()),
+                col("Ticker")
+                    .fill_null(lit("CASH"))
+                    .alias(Columns::Ticker.into()),
                 col("No. of shares")
                     .cast(DataType::Float64)
+                    .fill_null(lit(1))
                     .alias(Columns::Qty.into()),
                 col("Price / share")
+                    .fill_null(col("Total"))
                     .cast(DataType::Float64)
                     .alias(Columns::Price.into()),
                 col("Total")
@@ -60,19 +64,6 @@ impl Broker for Trading212 {
             .with_columns([
                 //Create new columns
                 lit(Type::Stock.to_string()).alias(Columns::Type.into()),
-                // Fill up empty cells.
-                when(col(Columns::Action.into()).is_in(lit(cash_sources.clone())))
-                    .then(lit("CASH"))
-                    .otherwise(col(Columns::Ticker.into()))
-                    .alias(Columns::Ticker.into()),
-                when(col(Columns::Action.into()).is_in(lit(cash_sources.clone())))
-                    .then(lit(1))
-                    .otherwise(col(Columns::Qty.into()))
-                    .alias(Columns::Qty.into()),
-                when(col(Columns::Action.into()).is_in(lit(cash_sources.clone())))
-                    .then(col(Columns::Amount.into()))
-                    .otherwise(col(Columns::Price.into()))
-                    .alias(Columns::Price.into()),
             ]);
 
         Ok(out.collect()?)
