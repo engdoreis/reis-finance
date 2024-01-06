@@ -1,8 +1,8 @@
 extern crate reis_finance_lib;
 
 use anyhow::Result;
-use reis_finance_lib::broker::{TBroker, Trading212};
-use reis_finance_lib::scraper::{self as sc, TScraper, Yahoo};
+use reis_finance_lib::broker::{IBroker, Trading212};
+use reis_finance_lib::scraper::{self as sc, IScraper, Yahoo};
 
 fn main() -> Result<()> {
     let broker = Trading212::new();
@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     let mut yh = Yahoo::new();
     let data = yh.load(
         "GOOGL".to_string(),
-        sc::SearchBy::PeriodFromNow(sc::Time::Month(24)),
+        sc::SearchBy::PeriodFromNow(sc::Interval::Month(24)),
     )?;
     println!("Quotes: {:?}", data.quotes()?);
     println!("Splits: {:?}", data.splits()?);

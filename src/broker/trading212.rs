@@ -1,6 +1,6 @@
 use super::{
     schema::{Action, Columns, Type},
-    TBroker,
+    IBroker,
 };
 
 use anyhow::Result;
@@ -20,7 +20,7 @@ impl Trading212 {
     }
 }
 
-impl TBroker for Trading212 {
+impl IBroker for Trading212 {
     fn load_from_csv(&self, csv_file: &str) -> Result<DataFrame> {
         let df = LazyCsvReader::new(csv_file).has_header(true).finish()?;
         let out = df

@@ -2,7 +2,6 @@ use crate::broker::schema::Columns;
 use anyhow::{anyhow, Result};
 
 use polars::prelude::*;
-use time;
 use yahoo_finance_api as yahoo;
 
 use super::*;
@@ -35,7 +34,7 @@ impl Yahoo {
     }
 }
 
-impl TScraper for Yahoo {
+impl IScraper for Yahoo {
     fn ticker(&self) -> String {
         self.ticker.clone()
     }
@@ -45,7 +44,7 @@ impl TScraper for Yahoo {
         self.response = Some(match search_interval {
             SearchBy::PeriodFromNow(range) => tokio_test::block_on(self.provider.get_quote_range(
                 &self.ticker,
-                &Time::Day(1).to_string(),
+                &Interval::Day(1).to_string(),
                 &range.to_string(),
             )),
             SearchBy::PeriodIntervalFromNow { range, interval } => {
@@ -149,7 +148,7 @@ mod unittest {
                 SearchBy::TimeRange {
                     start: "2023-08-06".parse().unwrap(),
                     end: "2024-01-06".parse().unwrap(),
-                    interval: Time::Day(1),
+                    interval: Interval::Day(1),
                 },
             )
             .unwrap();
@@ -180,7 +179,7 @@ mod unittest {
                 SearchBy::TimeRange {
                     start: "2022-01-06".parse().unwrap(),
                     end: "2023-01-06".parse().unwrap(),
-                    interval: Time::Day(1),
+                    interval: Interval::Day(1),
                 },
             )
             .unwrap();
@@ -211,7 +210,7 @@ mod unittest {
                 SearchBy::TimeRange {
                     start: "2022-01-06".parse().unwrap(),
                     end: "2023-01-06".parse().unwrap(),
-                    interval: Time::Day(1),
+                    interval: Interval::Day(1),
                 },
             )
             .unwrap();
