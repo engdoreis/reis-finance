@@ -3,7 +3,7 @@ use anyhow::Result;
 use glob::glob;
 use polars::prelude::{concat, DataFrame, IntoLazy};
 
-pub trait Broker {
+pub trait TBroker {
     fn load_from_csv(&self, file: &str) -> Result<DataFrame>;
 
     fn load_from_dir(&self, dir: &str) -> Result<DataFrame> {

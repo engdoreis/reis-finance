@@ -26,7 +26,7 @@ pub struct Date {
 impl FromStr for Date {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let digits: Vec<_> = s.split("-").collect();
+        let digits: Vec<_> = s.split('-').collect();
         if digits.len() != 3 {
             return Err(anyhow!("Wrong format"));
         }
@@ -51,7 +51,7 @@ pub enum SearchBy {
     },
 }
 
-pub trait Scraper {
+pub trait TScraper {
     fn ticker(&self) -> String;
     fn load(&mut self, search_interval: SearchBy) -> Result<&Self>;
     fn quotes(&self) -> Result<DataFrame>;

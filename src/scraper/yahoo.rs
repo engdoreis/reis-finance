@@ -1,4 +1,4 @@
-use crate::brokers::schema::Columns;
+use crate::broker::schema::Columns;
 use anyhow::{anyhow, Result};
 
 use polars::prelude::*;
@@ -35,7 +35,7 @@ impl Yahoo {
     }
 }
 
-impl Scraper for Yahoo {
+impl TScraper for Yahoo {
     fn ticker(&self) -> String {
         self.ticker.clone()
     }

@@ -1,6 +1,6 @@
 use super::{
     schema::{Action, Columns, Type},
-    Broker,
+    TBroker,
 };
 
 use anyhow::Result;
@@ -8,13 +8,19 @@ use polars::prelude::*;
 
 pub struct Trading212 {}
 
+impl Default for Trading212 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Trading212 {
     pub fn new() -> Self {
         Trading212 {}
     }
 }
 
-impl Broker for Trading212 {
+impl TBroker for Trading212 {
     fn load_from_csv(&self, csv_file: &str) -> Result<DataFrame> {
         let df = LazyCsvReader::new(csv_file).has_header(true).finish()?;
         let out = df

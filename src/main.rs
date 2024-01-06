@@ -1,8 +1,8 @@
 extern crate reis_finance_lib;
 
 use anyhow::Result;
-use reis_finance_lib::brokers::{Broker, Trading212};
-use reis_finance_lib::scraper::{self as sc, Scraper, Yahoo};
+use reis_finance_lib::broker::{TBroker, Trading212};
+use reis_finance_lib::scraper::{self as sc, TScraper, Yahoo};
 
 fn main() -> Result<()> {
     let broker = Trading212::new();
