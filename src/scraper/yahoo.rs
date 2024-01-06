@@ -130,3 +130,103 @@ impl Scraper for Yahoo {
             .collect()?)
     }
 }
+
+#[cfg(test)]
+mod unittest {
+    use super::*;
+    use crate::testutils;
+    use std::fs::File;
+
+    #[test]
+    fn get_quotes_with_time_range_success() {
+        let reference_output = "resources/tests/apple-quotes-6m.csv";
+        let output = "/tmp/get_quotes_with_time_range_success.csv";
+
+        let mut yh = Yahoo::new();
+        let data = yh
+            .load(
+                "AAPL".to_string(),
+                SearchBy::TimeRange {
+                    start: "2023-08-06".parse().unwrap(),
+                    end: "2024-01-06".parse().unwrap(),
+                    interval: Time::Day(1),
+                },
+            )
+            .unwrap();
+
+        let mut quotes = data.quotes().unwrap();
+        let mut file = File::create(output).expect("could not create file");
+        CsvWriter::new(&mut file)
+            .include_header(true)
+            .with_separator(b',')
+            .finish(&mut quotes)
+            .unwrap();
+
+        assert!(
+            testutils::fs::compare_files(reference_output, output).unwrap(),
+            "Run the command to check the diff: meld {reference_output} {output}"
+        );
+    }
+
+    #[test]
+    fn get_splits_with_time_range_success() {
+        let reference_output = "resources/tests/google-splits.csv";
+        let output = "/tmp/get_splits_with_time_range_success.csv";
+
+        let mut yh = Yahoo::new();
+        let data = yh
+            .load(
+                "GOOGL".to_string(),
+                SearchBy::TimeRange {
+                    start: "2022-01-06".parse().unwrap(),
+                    end: "2023-01-06".parse().unwrap(),
+                    interval: Time::Day(1),
+                },
+            )
+            .unwrap();
+
+        let mut quotes = data.splits().unwrap();
+        let mut file = File::create(output).expect("could not create file");
+        CsvWriter::new(&mut file)
+            .include_header(true)
+            .with_separator(b',')
+            .finish(&mut quotes)
+            .unwrap();
+
+        assert!(
+            testutils::fs::compare_files(reference_output, output).unwrap(),
+            "Run the command to check the diff: meld {reference_output} {output}"
+        );
+    }
+
+    #[test]
+    fn get_dividends_with_time_range_success() {
+        let reference_output = "resources/tests/apple-dividends.csv";
+        let output = "/tmp/get_dividends_with_time_range_success.csv";
+
+        let mut yh = Yahoo::new();
+        let data = yh
+            .load(
+                "AAPL".to_string(),
+                SearchBy::TimeRange {
+                    start: "2022-01-06".parse().unwrap(),
+                    end: "2023-01-06".parse().unwrap(),
+                    interval: Time::Day(1),
+                },
+            )
+            .unwrap();
+
+        let mut quotes = data.dividends().unwrap();
+        let mut file = File::create(output).expect("could not create file");
+        CsvWriter::new(&mut file)
+            .include_header(true)
+            .with_separator(b',')
+            .finish(&mut quotes)
+            .unwrap();
+
+        assert!(
+            testutils::fs::compare_files(reference_output, output).unwrap(),
+            "Run the command to check the diff: meld {reference_output} {output}"
+        );
+    }
+}
