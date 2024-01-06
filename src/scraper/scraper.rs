@@ -4,7 +4,6 @@ use polars::prelude::DataFrame;
 use std::str::FromStr;
 
 #[derive(derive_more::Display, Debug)]
-#[allow(dead_code)]
 pub enum Time {
     #[display(fmt = "{}d", _0)]
     Day(u32),
