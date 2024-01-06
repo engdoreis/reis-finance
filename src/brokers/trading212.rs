@@ -83,16 +83,10 @@ impl Broker for Trading212 {
 
 #[cfg(test)]
 mod unittest {
-    use super::*;
-    use std::fs::{self, File};
 
-    fn compare_files(file_path1: &str, file_path2: &str) -> Result<bool> {
-        // Read the contents of the first file into a vector
-        let contents1 = fs::read(file_path1).expect(&format!("Cant't read file {file_path1}"));
-        // Read the contents of the second file into a vector
-        let contents2 = fs::read(file_path2).expect(&format!("Cant't read file {file_path2}"));
-        Ok(contents1 == contents2)
-    }
+    use super::*;
+    use crate::testutils;
+    use std::fs::File;
 
     #[test]
     fn load_csv_success() {
@@ -110,7 +104,7 @@ mod unittest {
             .unwrap();
 
         assert!(
-            compare_files(reference_output, output).unwrap(),
+            testutils::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }
@@ -131,7 +125,7 @@ mod unittest {
             .unwrap();
 
         assert!(
-            compare_files(reference_output, output).unwrap(),
+            testutils::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }

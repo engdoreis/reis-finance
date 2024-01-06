@@ -13,5 +13,6 @@ lazy_static = "1.4.0"
 polars = {version = "0.35.4", features = ["lazy", "strings", "is_in"]}
 strum = {version = "0.25.0", features = ["derive"]}
 strum_macros = "0.25.3"
+time = {version="0.3.31", features = ["parsing", "formatting"]}
 tokio-test = "0.4.3"
 yahoo_finance_api = "2.1.0"
