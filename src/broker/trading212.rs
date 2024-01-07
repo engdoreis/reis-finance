@@ -46,6 +46,12 @@ impl IBroker for Trading212 {
                 // Rename columns to the standard data schema.
                 col("Time")
                     .str()
+                    .replace(
+                        lit(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"),
+                        lit(r"$1"),
+                        false,
+                    )
+                    .str()
                     .to_datetime(None, None, StrptimeOptions::default(), lit("raise"))
                     .cast(DataType::Date)
                     .alias(Columns::Date.into()),
