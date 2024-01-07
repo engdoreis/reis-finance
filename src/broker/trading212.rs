@@ -70,6 +70,14 @@ impl IBroker for Trading212 {
             .with_columns([
                 //Create new columns
                 lit(Type::Stock.to_string()).alias(Columns::Type.into()),
+                //Make the qty negative when selling.
+                when(
+                    col(Columns::Action.into())
+                        .str()
+                        .contains_literal(lit(Self::action_to_string(Action::Sell))),
+                )
+                .then(col(Columns::Qty.into()) * lit(-1))
+                .otherwise(col(Columns::Qty.into())),
             ]);
 
         Ok(out.collect()?)
@@ -84,6 +92,17 @@ impl IBroker for Trading212 {
             ["Dividend", _] => Action::Dividend,
             _ => panic!("Unknown {s}"),
         }
+    }
+
+    fn action_to_string(action: Action) -> String {
+        (match action {
+            Action::Deposit => "Deposit",
+            Action::Buy => "buy",
+            Action::Sell => "sell",
+            Action::Dividend => "Dividend",
+            _ => panic!("Unknown {:?}", action),
+        })
+        .to_string()
     }
 }
 

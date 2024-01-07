@@ -36,4 +36,5 @@ pub trait IBroker {
     }
 
     fn into_action(s: &str) -> Action;
+    fn action_to_string(action: Action) -> String;
 }
