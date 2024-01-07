@@ -18,6 +18,18 @@ impl Trading212 {
     pub fn new() -> Self {
         Trading212 {}
     }
+
+    fn map_action(s: &str) -> Action {
+        let collect: Vec<_> = s.split_whitespace().take(2).collect();
+        match &collect[..] {
+            ["Deposit"] => Action::Deposit,
+            [_, "buy"] => Action::Buy,
+            [_, "sell"] => Action::Sell,
+            ["Dividend", _] => Action::Dividend,
+            ["Interest", _] => Action::Interest,
+            _ => panic!("Unknown {s}"),
+        }
+    }
 }
 
 impl IBroker for Trading212 {
@@ -55,7 +67,25 @@ impl IBroker for Trading212 {
                     .to_datetime(None, None, StrptimeOptions::default(), lit("raise"))
                     .cast(DataType::Date)
                     .alias(Columns::Date.into()),
-                col("Action").alias(Columns::Action.into()),
+                col("Action")
+                    .map(
+                        |series| {
+                            Ok(Some(
+                                series
+                                    .str()?
+                                    .into_iter()
+                                    .map(|row| {
+                                        let res: &str =
+                                            Self::map_action(row.expect("Bad string")).into();
+                                        res
+                                    })
+                                    .collect::<ChunkedArray<_>>()
+                                    .into_series(),
+                            ))
+                        },
+                        GetOutput::from_type(DataType::String),
+                    )
+                    .alias(Columns::Action.into()),
                 col("Ticker")
                     .fill_null(lit("CASH"))
                     .alias(Columns::Ticker.into()),
@@ -98,35 +128,13 @@ impl IBroker for Trading212 {
                 when(
                     col(Columns::Action.into())
                         .str()
-                        .contains_literal(lit(Self::action_to_string(Action::Sell))),
+                        .contains_literal(lit::<&str>(Action::Sell.into())),
                 )
                 .then(col(Columns::Qty.into()) * lit(-1))
                 .otherwise(col(Columns::Qty.into())),
             ]);
 
         Ok(out.collect()?)
-    }
-
-    fn into_action(s: &str) -> Action {
-        let collect: Vec<_> = s.split_whitespace().take(2).collect();
-        match &collect[..] {
-            ["Deposit", _] => Action::Deposit,
-            [_, "buy"] => Action::Buy,
-            [_, "sell"] => Action::Sell,
-            ["Dividend", _] => Action::Dividend,
-            _ => panic!("Unknown {s}"),
-        }
-    }
-
-    fn action_to_string(action: Action) -> String {
-        (match action {
-            Action::Deposit => "Deposit",
-            Action::Buy => "buy",
-            Action::Sell => "sell",
-            Action::Dividend => "Dividend",
-            _ => panic!("Unknown {:?}", action),
-        })
-        .to_string()
     }
 }
 
@@ -162,7 +170,7 @@ mod unittest {
     fn load_dir_success() {
         let input_dir = "resources/tests/input/trading212";
         let reference_output = "resources/tests/trading212_dir_success.csv";
-        let output = "/tmp/trading212_result.csv";
+        let output = "/tmp/trading212_dir_result.csv";
 
         let mut df = Trading212::new().load_from_dir(input_dir).unwrap();
 
