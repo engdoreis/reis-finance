@@ -22,8 +22,26 @@ impl Trading212 {
 
 impl IBroker for Trading212 {
     fn load_from_csv(&self, csv_file: &str) -> Result<DataFrame> {
-        let df = LazyCsvReader::new(csv_file).has_header(true).finish()?;
-        let out = df
+        let df = LazyCsvReader::new(csv_file)
+            .has_header(true)
+            .finish()?
+            .collect()?;
+
+        //TODO: check if there's a batter way of handling optional columns.
+        let columns = df.get_column_names();
+        let mut lazy_df = df.clone().lazy();
+        let optional_columns = [
+            "Stamp duty reserve tax",
+            "Withholding tax",
+            "Currency conversion fee",
+        ];
+        for opt_col in optional_columns {
+            if !columns.contains(&opt_col) {
+                lazy_df = lazy_df.with_column(lit(0).alias(opt_col));
+            }
+        }
+
+        let out = lazy_df
             .select([
                 // Rename columns to the standard data schema.
                 col("Time")
