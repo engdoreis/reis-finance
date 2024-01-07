@@ -67,24 +67,7 @@ impl IBroker for Trading212 {
                     .to_datetime(None, None, StrptimeOptions::default(), lit("raise"))
                     .cast(DataType::Date)
                     .alias(Columns::Date.into()),
-                col("Action")
-                    .map(
-                        |series| {
-                            Ok(Some(
-                                series
-                                    .str()?
-                                    .into_iter()
-                                    .map(|row| {
-                                        let res: &str =
-                                            Self::map_action(row.expect("Bad string")).into();
-                                        res
-                                    })
-                                    .collect::<ChunkedArray<_>>()
-                                    .into_series(),
-                            ))
-                        },
-                        GetOutput::from_type(DataType::String),
-                    )
+                map_str_column("Action", |row| Self::map_action(row).into())
                     .alias(Columns::Action.into()),
                 col("Ticker")
                     .fill_null(lit("CASH"))
@@ -136,6 +119,25 @@ impl IBroker for Trading212 {
 
         Ok(out.collect()?)
     }
+}
+
+pub fn map_str_column<F>(name: &str, f: F) -> Expr
+where
+    F: Fn(&str) -> &str + Send + Sync + 'static,
+{
+    col(name).map(
+        move |series| {
+            Ok(Some(
+                series
+                    .str()?
+                    .into_iter()
+                    .map(|row| f(row.expect("Bad string")))
+                    .collect::<ChunkedArray<_>>()
+                    .into_series(),
+            ))
+        },
+        GetOutput::from_type(DataType::String),
+    )
 }
 
 #[cfg(test)]
