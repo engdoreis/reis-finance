@@ -23,6 +23,7 @@ impl Trading212 {
         let collect: Vec<_> = s.split_whitespace().take(2).collect();
         match &collect[..] {
             ["Deposit"] => Action::Deposit,
+            ["Withdrawal"] => Action::Withdraw,
             [_, "buy"] => Action::Buy,
             [_, "sell"] => Action::Sell,
             ["Dividend", _] => Action::Dividend,

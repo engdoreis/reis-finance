@@ -26,6 +26,7 @@ pub enum Action {
     Deposit,
     Tax,
     Interest,
+    Withdraw,
 }
 
 #[derive(Debug, strum_macros::Display, strum::IntoStaticStr)]
