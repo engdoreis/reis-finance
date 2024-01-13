@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.78"
+chrono = "0.4.31"
 derive_more = "0.99.17"
 glob = "0.3.1"
 lazy_static = "1.4.0"

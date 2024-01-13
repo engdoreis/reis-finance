@@ -57,17 +57,7 @@ impl IBroker for Trading212 {
         let out = lazy_df
             .select([
                 // Rename columns to the standard data schema.
-                col("Time")
-                    .str()
-                    .replace(
-                        lit(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"),
-                        lit(r"$1"),
-                        false,
-                    )
-                    .str()
-                    .to_datetime(None, None, StrptimeOptions::default(), lit("raise"))
-                    .cast(DataType::Date)
-                    .alias(Columns::Date.into()),
+                crate::utils::str_to_date("Time").alias(Columns::Date.into()),
                 map_str_column("Action", |row| Self::map_action(row).into())
                     .alias(Columns::Action.into()),
                 col("Ticker")
@@ -145,7 +135,7 @@ where
 mod unittest {
 
     use super::*;
-    use crate::testutils;
+    use crate::utils;
     use std::fs::File;
 
     #[test]
@@ -164,7 +154,7 @@ mod unittest {
             .unwrap();
 
         assert!(
-            testutils::fs::compare_files(reference_output, output).unwrap(),
+            utils::test::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }
@@ -185,7 +175,7 @@ mod unittest {
             .unwrap();
 
         assert!(
-            testutils::fs::compare_files(reference_output, output).unwrap(),
+            utils::test::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }

@@ -26,12 +26,6 @@ impl Yahoo {
             .as_ref()
             .ok_or(anyhow!("load function should be called first"))
     }
-
-    fn epoc_to_date(column: &str) -> Expr {
-        (col(column) * lit(1000))
-            .cast(DataType::Datetime(datatypes::TimeUnit::Milliseconds, None))
-            .cast(DataType::Date)
-    }
 }
 
 impl IScraper for Yahoo {
@@ -75,65 +69,57 @@ impl IScraper for Yahoo {
         Ok(self)
     }
 
-    fn quotes(&self) -> Result<DataFrame> {
+    fn quotes(&self) -> Result<Quotes> {
         let response = self.response()?;
 
         let quotes = response.quotes()?;
-        let (date, amount): (Vec<_>, Vec<_>) = quotes
-            .iter()
-            .map(|quote| (quote.timestamp, quote.close))
-            .unzip();
-
-        let date = Series::new(Columns::Date.into(), date.as_slice());
-        let amount = Series::new(Columns::Amount.into(), amount.as_slice());
-
-        Ok(DataFrame::new(vec![date, amount])?
-            .lazy()
-            .with_column(Self::epoc_to_date(Columns::Date.into()))
-            .collect()?)
+        Ok(Quotes(
+            quotes
+                .iter()
+                .map(|quote| Element {
+                    date: Date::from(quote.timestamp),
+                    number: quote.close,
+                })
+                .collect(),
+        ))
     }
 
-    fn splits(&self) -> Result<DataFrame> {
+    fn splits(&self) -> Result<Splits> {
         let response = self.response()?;
 
         let quotes = response.splits()?;
-        let (date, qty): (Vec<_>, Vec<_>) = quotes
-            .iter()
-            .map(|split| (split.date, split.numerator / split.denominator))
-            .unzip();
-
-        let date = Series::new(Columns::Date.into(), date.as_slice());
-        let qty = Series::new(Columns::Qty.into(), qty.as_slice());
-
-        Ok(DataFrame::new(vec![date, qty])?
-            .lazy()
-            .with_column(Self::epoc_to_date(Columns::Date.into()))
-            .collect()?)
+        Ok(Splits(
+            quotes
+                .iter()
+                .map(|split| Element {
+                    date: Date::from(split.date),
+                    number: split.numerator / split.denominator,
+                })
+                .collect(),
+        ))
     }
 
-    fn dividends(&self) -> Result<DataFrame> {
+    fn dividends(&self) -> Result<Dividends> {
         let response = self.response()?;
 
         let quotes = response.dividends()?;
-        let (date, amount): (Vec<_>, Vec<_>) = quotes
-            .iter()
-            .map(|dividend| (dividend.date, dividend.amount))
-            .unzip();
 
-        let date = Series::new(Columns::Date.into(), date.as_slice());
-        let amount = Series::new(Columns::Amount.into(), amount.as_slice());
-
-        Ok(DataFrame::new(vec![date, amount])?
-            .lazy()
-            .with_column(Self::epoc_to_date(Columns::Date.into()))
-            .collect()?)
+        Ok(Dividends(
+            quotes
+                .iter()
+                .map(|div| Element {
+                    date: Date::from(div.date),
+                    number: div.amount,
+                })
+                .collect(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::testutils;
+    use crate::utils;
     use std::fs::File;
 
     #[test]
@@ -153,7 +139,11 @@ mod unittest {
             )
             .unwrap();
 
-        let mut quotes = data.quotes().unwrap();
+        let mut quotes = data
+            .quotes()
+            .unwrap()
+            .into_dataframe((Columns::Date, Columns::Price))
+            .unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -162,7 +152,7 @@ mod unittest {
             .unwrap();
 
         assert!(
-            testutils::fs::compare_files(reference_output, output).unwrap(),
+            utils::test::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }
@@ -184,16 +174,20 @@ mod unittest {
             )
             .unwrap();
 
-        let mut quotes = data.splits().unwrap();
+        let mut splits = data
+            .splits()
+            .unwrap()
+            .into_dataframe((Columns::Date, Columns::Qty))
+            .unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
             .with_separator(b',')
-            .finish(&mut quotes)
+            .finish(&mut splits)
             .unwrap();
 
         assert!(
-            testutils::fs::compare_files(reference_output, output).unwrap(),
+            utils::test::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }
@@ -215,16 +209,20 @@ mod unittest {
             )
             .unwrap();
 
-        let mut quotes = data.dividends().unwrap();
+        let mut div = data
+            .dividends()
+            .unwrap()
+            .into_dataframe((Columns::Date, Columns::Price))
+            .unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
             .with_separator(b',')
-            .finish(&mut quotes)
+            .finish(&mut div)
             .unwrap();
 
         assert!(
-            testutils::fs::compare_files(reference_output, output).unwrap(),
+            utils::test::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
     }

@@ -15,8 +15,8 @@ fn main() -> Result<()> {
         "GOOGL".to_string(),
         sc::SearchBy::PeriodFromNow(sc::Interval::Month(24)),
     )?;
-    println!("Quotes: {:?}", data.quotes()?);
-    println!("Splits: {:?}", data.splits()?);
-    println!("Dividends: {:?}", data.dividends()?);
+    // println!("Quotes: {:#?}", data.quotes()?);
+    println!("Splits: {:#?}", data.splits()?);
+    println!("Dividends: {:#?}", data.dividends()?);
     Ok(())
 }
