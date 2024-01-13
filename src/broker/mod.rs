@@ -2,7 +2,6 @@ pub mod trading212;
 
 pub use trading212::Trading212;
 
-use crate::schema::Action;
 use anyhow::Result;
 use glob::glob;
 use polars::prelude::{concat, DataFrame, IntoLazy};

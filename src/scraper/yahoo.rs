@@ -1,9 +1,7 @@
 use crate::schema::Columns;
 use anyhow::{anyhow, Result};
 
-use chrono;
-use chrono::TimeZone;
-use polars::prelude::*;
+use chrono::{self, TimeZone};
 use yahoo_finance_api as yahoo;
 
 use super::*;
@@ -73,8 +71,9 @@ impl IScraper for Yahoo {
         let response = self.response()?;
 
         let quotes = response.quotes()?;
-        Ok(Quotes(
-            quotes
+        Ok(ElementSet {
+            columns: (Columns::Date, Columns::Price),
+            data: quotes
                 .iter()
                 .map(|quote| Element {
                     date: chrono::Utc
@@ -84,15 +83,16 @@ impl IScraper for Yahoo {
                     number: quote.close,
                 })
                 .collect(),
-        ))
+        })
     }
 
     fn splits(&self) -> Result<Splits> {
         let response = self.response()?;
 
         let quotes = response.splits()?;
-        Ok(Splits(
-            quotes
+        Ok(ElementSet {
+            columns: (Columns::Date, Columns::Qty),
+            data: quotes
                 .iter()
                 .map(|split| Element {
                     date: chrono::Utc
@@ -102,7 +102,7 @@ impl IScraper for Yahoo {
                     number: split.numerator / split.denominator,
                 })
                 .collect(),
-        ))
+        })
     }
 
     fn dividends(&self) -> Result<Dividends> {
@@ -110,8 +110,9 @@ impl IScraper for Yahoo {
 
         let quotes = response.dividends()?;
 
-        Ok(Dividends(
-            quotes
+        Ok(ElementSet {
+            columns: (Columns::Date, Columns::Price),
+            data: quotes
                 .iter()
                 .map(|div| Element {
                     date: chrono::Utc
@@ -121,7 +122,7 @@ impl IScraper for Yahoo {
                     number: div.amount,
                 })
                 .collect(),
-        ))
+        })
     }
 }
 
@@ -148,11 +149,7 @@ mod unittest {
             )
             .unwrap();
 
-        let mut quotes = data
-            .quotes()
-            .unwrap()
-            .into_dataframe((Columns::Date, Columns::Price))
-            .unwrap();
+        let mut quotes = data.quotes().unwrap().into_dataframe().unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -183,11 +180,7 @@ mod unittest {
             )
             .unwrap();
 
-        let mut splits = data
-            .splits()
-            .unwrap()
-            .into_dataframe((Columns::Date, Columns::Qty))
-            .unwrap();
+        let mut splits = data.splits().unwrap().into_dataframe().unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -218,11 +211,7 @@ mod unittest {
             )
             .unwrap();
 
-        let mut div = data
-            .dividends()
-            .unwrap()
-            .into_dataframe((Columns::Date, Columns::Price))
-            .unwrap();
+        let mut div = data.dividends().unwrap().into_dataframe().unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
