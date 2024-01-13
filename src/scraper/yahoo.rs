@@ -1,6 +1,8 @@
 use crate::broker::schema::Columns;
 use anyhow::{anyhow, Result};
 
+use chrono;
+use chrono::TimeZone;
 use polars::prelude::*;
 use yahoo_finance_api as yahoo;
 
@@ -52,18 +54,16 @@ impl IScraper for Yahoo {
                 start,
                 end,
                 interval,
-            } => {
-                let format = time::macros::format_description!(
-                    "[year]-[month]-[day] [hour]:[minute]:[second] [offset_hour \
-                sign:mandatory]:[offset_minute]:[offset_second]"
-                );
-                tokio_test::block_on(self.provider.get_quote_history_interval(
-                    &self.ticker,
-                    time::OffsetDateTime::parse(&start.to_string(), &format)?,
-                    time::OffsetDateTime::parse(&end.to_string(), &format)?,
-                    &interval.to_string(),
-                ))
-            }
+            } => tokio_test::block_on(self.provider.get_quote_history_interval(
+                &self.ticker,
+                time::OffsetDateTime::from_unix_timestamp(
+                    start.and_hms_opt(0, 0, 0).unwrap().timestamp(),
+                )?,
+                time::OffsetDateTime::from_unix_timestamp(
+                    end.and_hms_opt(0, 0, 0).unwrap().timestamp(),
+                )?,
+                &interval.to_string(),
+            )),
         }?);
 
         Ok(self)
@@ -77,7 +77,10 @@ impl IScraper for Yahoo {
             quotes
                 .iter()
                 .map(|quote| Element {
-                    date: Date::from(quote.timestamp),
+                    date: chrono::Utc
+                        .timestamp_opt(quote.timestamp as i64, 0)
+                        .unwrap()
+                        .date_naive(),
                     number: quote.close,
                 })
                 .collect(),
@@ -92,7 +95,10 @@ impl IScraper for Yahoo {
             quotes
                 .iter()
                 .map(|split| Element {
-                    date: Date::from(split.date),
+                    date: chrono::Utc
+                        .timestamp_opt(split.date as i64, 0)
+                        .unwrap()
+                        .date_naive(),
                     number: split.numerator / split.denominator,
                 })
                 .collect(),
@@ -108,7 +114,10 @@ impl IScraper for Yahoo {
             quotes
                 .iter()
                 .map(|div| Element {
-                    date: Date::from(div.date),
+                    date: chrono::Utc
+                        .timestamp_opt(div.date as i64, 0)
+                        .unwrap()
+                        .date_naive(),
                     number: div.amount,
                 })
                 .collect(),

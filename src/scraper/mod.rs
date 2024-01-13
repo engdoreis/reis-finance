@@ -17,7 +17,7 @@ pub trait IScraper {
 
 #[derive(Debug)]
 pub struct Element {
-    pub date: Date,
+    pub date: chrono::NaiveDate,
     pub number: f64,
 }
 
@@ -114,44 +114,6 @@ pub enum Interval {
     #[display(fmt = "{}y", _0)]
     Year(u32),
 }
-
-#[derive(derive_more::Display, Debug)]
-#[display(fmt = "{:04}-{:02}-{:02} 00:00:00 +00:00:00", year, month, day)]
-pub struct Date {
-    day: u8,
-    month: u8,
-    year: u32,
-}
-
-impl From<u64> for Date {
-    fn from(timestamp: u64) -> Self {
-        let datetime = chrono::Utc
-            .timestamp_opt(timestamp as i64, 0)
-            .unwrap()
-            .date_naive();
-        Date {
-            day: datetime.day() as u8,
-            month: datetime.month() as u8,
-            year: datetime.year() as u32,
-        }
-    }
-}
-
-impl FromStr for Date {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let digits: Vec<_> = s.split('-').collect();
-        if digits.len() != 3 {
-            return Err(anyhow!("Wrong format"));
-        }
-        Ok(Self {
-            day: digits[2].parse()?,
-            month: digits[1].parse()?,
-            year: digits[0].parse()?,
-        })
-    }
-}
-
 pub enum SearchBy {
     PeriodFromNow(Interval),
     PeriodIntervalFromNow {
@@ -159,8 +121,8 @@ pub enum SearchBy {
         interval: Interval,
     },
     TimeRange {
-        start: Date,
-        end: Date,
+        start: chrono::NaiveDate,
+        end: chrono::NaiveDate,
         interval: Interval,
     },
 }
