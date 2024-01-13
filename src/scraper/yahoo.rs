@@ -1,4 +1,4 @@
-use crate::broker::schema::Columns;
+use crate::schema::Columns;
 use anyhow::{anyhow, Result};
 
 use chrono;

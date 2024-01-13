@@ -1,12 +1,11 @@
-pub mod schema;
 pub mod trading212;
 
 pub use trading212::Trading212;
 
+use crate::schema::Action;
 use anyhow::Result;
 use glob::glob;
 use polars::prelude::{concat, DataFrame, IntoLazy};
-use schema::Action;
 
 pub trait IBroker {
     fn load_from_csv(&self, file: &str) -> Result<DataFrame>;

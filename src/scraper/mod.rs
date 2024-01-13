@@ -31,10 +31,7 @@ pub struct Dividends(Vec<Element>);
 impl Quotes {
     fn into_dataframe(
         self,
-        columns: (
-            crate::broker::schema::Columns,
-            crate::broker::schema::Columns,
-        ),
+        columns: (crate::schema::Columns, crate::schema::Columns),
     ) -> Result<DataFrame> {
         let (c1, c2): (Vec<_>, Vec<_>) = self
             .0
@@ -56,10 +53,7 @@ impl Quotes {
 impl Splits {
     fn into_dataframe(
         self,
-        columns: (
-            crate::broker::schema::Columns,
-            crate::broker::schema::Columns,
-        ),
+        columns: (crate::schema::Columns, crate::schema::Columns),
     ) -> Result<DataFrame> {
         let (c1, c2): (Vec<_>, Vec<_>) = self
             .0
@@ -81,10 +75,7 @@ impl Splits {
 impl Dividends {
     fn into_dataframe(
         self,
-        columns: (
-            crate::broker::schema::Columns,
-            crate::broker::schema::Columns,
-        ),
+        columns: (crate::schema::Columns, crate::schema::Columns),
     ) -> Result<DataFrame> {
         let (c1, c2): (Vec<_>, Vec<_>) = self
             .0
