@@ -57,8 +57,10 @@ impl IBroker for Trading212 {
             .select([
                 // Rename columns to the standard data schema.
                 utils::polars::str_to_date("Time").alias(Columns::Date.into()),
-                utils::polars::map_str_column("Action", |row| Self::map_action(row).into())
-                    .alias(Columns::Action.into()),
+                utils::polars::map_str_column("Action", |row| {
+                    Self::map_action(row.unwrap_or("Unknown")).into()
+                })
+                .alias(Columns::Action.into()),
                 col("Ticker")
                     .fill_null(lit("CASH"))
                     .alias(Columns::Ticker.into()),
@@ -87,12 +89,10 @@ impl IBroker for Trading212 {
                     .cast(DataType::Float64)
                     .alias(Columns::Commission.into()),
                 // Define the country where the ticker is hold.
-                when(col("ISIN").str().starts_with(lit("US")))
-                    .then(lit::<&str>(schema::Country::Usa.into()))
-                    .when(col("ISIN").str().starts_with(lit("GB")))
-                    .then(lit::<&str>(schema::Country::Uk.into()))
-                    .otherwise(lit::<&str>(schema::Country::default().into()))
-                    .alias(Columns::Country.into()),
+                utils::polars::map_str_column("ISIN", |isin| {
+                    schema::Country::from_isin(isin.unwrap_or("Default")).into()
+                })
+                .alias(Columns::Country.into()),
             ])
             .with_columns([
                 //Create new columns

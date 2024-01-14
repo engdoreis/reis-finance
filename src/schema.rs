@@ -14,6 +14,13 @@ pub enum Columns {
     Tax,
     Commission,
     Country,
+    AveragePrice,
+    MarketPrice,
+    Yield,
+    DividendYield,
+    Returns,
+    AccruedQty,
+    Total,
 }
 
 #[derive(Debug, strum::IntoStaticStr)]
@@ -45,5 +52,17 @@ pub enum Country {
     Unknown,
     Usa,
     Uk,
-    Bra,
+    Brazil,
+    Ireland,
+}
+
+impl Country {
+    pub fn from_isin(isin: impl Into<String>) -> Self {
+        match isin.into().split_at(2) {
+            ("US", _) => Country::Usa,
+            ("GB", _) => Country::Uk,
+            ("IE", _) => Country::Ireland,
+            _ => Country::default(),
+        }
+    }
 }

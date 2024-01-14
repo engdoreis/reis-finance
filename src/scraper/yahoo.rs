@@ -44,8 +44,9 @@ impl IScraper for Yahoo {
         self.ticker += match country {
             schema::Country::Usa => "",
             schema::Country::Uk => ".L",
-            schema::Country::Bra => ".SA",
-            schema::Country::Unknown => ".L",
+            schema::Country::Brazil => ".SA",
+            schema::Country::Ireland => ".L",
+            schema::Country::Unknown => panic!("Country must be known"),
         };
         self
     }
@@ -262,7 +263,7 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker("WEGE3")
-            .with_country(schema::Country::Bra)
+            .with_country(schema::Country::Brazil)
             .load(SearchBy::TimeRange {
                 start: "2023-01-05".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),

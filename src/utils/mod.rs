@@ -37,7 +37,7 @@ pub mod polars {
 
     pub fn map_str_column<F>(name: &str, f: F) -> Expr
     where
-        F: Fn(&str) -> &str + Send + Sync + 'static,
+        F: Fn(Option<&str>) -> &str + Send + Sync + 'static,
     {
         col(name).map(
             move |series| {
@@ -45,12 +45,28 @@ pub mod polars {
                     series
                         .str()?
                         .into_iter()
-                        .map(|row| f(row.expect("Bad string")))
+                        .map(|row| f(row))
                         .collect::<ChunkedArray<_>>()
                         .into_series(),
                 ))
             },
             GetOutput::from_type(DataType::String),
         )
+    }
+    pub mod compute {
+        use crate::schema;
+        use polars::prelude::*;
+        pub fn yeld() -> Expr {
+            ((col(schema::Columns::MarketPrice.into()) / col(schema::Columns::AveragePrice.into())
+                - lit(1))
+                * lit(100))
+            .alias(schema::Columns::Yield.into())
+        }
+
+        pub fn returns() -> Expr {
+            ((col(schema::Columns::MarketPrice.into()) - col(schema::Columns::AveragePrice.into()))
+                * col(schema::Columns::AccruedQty.into()))
+            .alias(schema::Columns::Returns.into())
+        }
     }
 }

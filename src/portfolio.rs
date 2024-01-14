@@ -1,5 +1,6 @@
 use crate::schema;
 use crate::scraper::{self, IScraper};
+use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 use std::collections::HashMap;
@@ -18,9 +19,6 @@ impl<T: IScraper> Portfolio<T> {
     }
 
     pub fn collect(&mut self) -> Result<DataFrame> {
-        let col_acum_amount = "acum-amount";
-        let col_acum_qty = "acum-qty";
-        let average_price = "average-price";
         let portfolio = self
             .orders
             .clone()
@@ -35,11 +33,16 @@ impl<T: IScraper> Portfolio<T> {
             .agg([
                 col(schema::Columns::Amount.into())
                     .sum()
-                    .alias(col_acum_amount),
-                col(schema::Columns::Qty.into()).sum().alias(col_acum_qty),
+                    .alias(schema::Columns::Total.into()),
+                col(schema::Columns::Qty.into())
+                    .sum()
+                    .alias(schema::Columns::AccruedQty.into()),
             ])
-            .filter(col(col_acum_qty).gt(lit(0)))
-            .with_column((col(col_acum_amount) / col(col_acum_qty)).alias(average_price))
+            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
+            .with_column(
+                (col(schema::Columns::Total.into()) / col(schema::Columns::AccruedQty.into()))
+                    .alias(schema::Columns::AveragePrice.into()),
+            )
             .collect()?;
 
         let quotes = self.quotes(&portfolio)?;
@@ -60,8 +63,12 @@ impl<T: IScraper> Portfolio<T> {
                         },
                         GetOutput::from_type(DataType::Float64),
                     )
-                    .alias(schema::Columns::Price.into()),
+                    .alias(schema::Columns::MarketPrice.into()),
             )
+            .with_columns([
+                utils::polars::compute::yeld(),
+                utils::polars::compute::returns(),
+            ])
             .collect()?;
 
         Ok(portfolio)
