@@ -1,5 +1,5 @@
 use super::IBroker;
-use crate::schema::{Action, Columns, Type};
+use crate::schema::{self, Action, Columns, Type};
 use crate::utils;
 
 use anyhow::Result;
@@ -88,10 +88,10 @@ impl IBroker for Trading212 {
                     .alias(Columns::Commission.into()),
                 // Define the country where the ticker is hold.
                 when(col("ISIN").str().starts_with(lit("US")))
-                    .then(lit("USA"))
+                    .then(lit::<&str>(schema::Country::Usa.into()))
                     .when(col("ISIN").str().starts_with(lit("GB")))
-                    .then(lit("UK"))
-                    .otherwise(lit("Unknown"))
+                    .then(lit::<&str>(schema::Country::Uk.into()))
+                    .otherwise(lit::<&str>(schema::Country::default().into()))
                     .alias(Columns::Country.into()),
             ])
             .with_columns([
