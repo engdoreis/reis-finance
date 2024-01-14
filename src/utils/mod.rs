@@ -13,21 +13,44 @@ pub mod test {
         }
     }
 }
-pub fn epoc_to_date(column: &str) -> Expr {
-    (col(column) * lit(1000))
-        .cast(DataType::Datetime(datatypes::TimeUnit::Milliseconds, None))
-        .cast(DataType::Date)
-}
 
-pub fn str_to_date(column: &str) -> Expr {
-    col(column)
-        .str()
-        .replace(
-            lit(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"),
-            lit(r"$1"),
-            false,
+pub mod polars {
+    use polars::prelude::*;
+    pub fn epoc_to_date(column: &str) -> Expr {
+        (col(column) * lit(1000))
+            .cast(DataType::Datetime(datatypes::TimeUnit::Milliseconds, None))
+            .cast(DataType::Date)
+    }
+
+    pub fn str_to_date(column: &str) -> Expr {
+        col(column)
+            .str()
+            .replace(
+                lit(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*"),
+                lit(r"$1"),
+                false,
+            )
+            .str()
+            .to_datetime(None, None, StrptimeOptions::default(), lit("raise"))
+            .cast(DataType::Date)
+    }
+
+    pub fn map_str_column<F>(name: &str, f: F) -> Expr
+    where
+        F: Fn(&str) -> &str + Send + Sync + 'static,
+    {
+        col(name).map(
+            move |series| {
+                Ok(Some(
+                    series
+                        .str()?
+                        .into_iter()
+                        .map(|row| f(row.expect("Bad string")))
+                        .collect::<ChunkedArray<_>>()
+                        .into_series(),
+                ))
+            },
+            GetOutput::from_type(DataType::String),
         )
-        .str()
-        .to_datetime(None, None, StrptimeOptions::default(), lit("raise"))
-        .cast(DataType::Date)
+    }
 }
