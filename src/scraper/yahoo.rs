@@ -12,6 +12,12 @@ pub struct Yahoo {
     response: Option<yahoo::YResponse>,
 }
 
+impl Default for Yahoo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Yahoo {
     pub fn new() -> Self {
         Self {
