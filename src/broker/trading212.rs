@@ -1,5 +1,6 @@
 use super::IBroker;
 use crate::schema::{Action, Columns, Type};
+use crate::utils;
 
 use anyhow::Result;
 use polars::prelude::*;
@@ -55,7 +56,7 @@ impl IBroker for Trading212 {
         let out = lazy_df
             .select([
                 // Rename columns to the standard data schema.
-                crate::utils::str_to_date("Time").alias(Columns::Date.into()),
+                utils::str_to_date("Time").alias(Columns::Date.into()),
                 map_str_column("Action", |row| Self::map_action(row).into())
                     .alias(Columns::Action.into()),
                 col("Ticker")

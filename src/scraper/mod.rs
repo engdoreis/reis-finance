@@ -1,14 +1,17 @@
 pub mod yahoo;
 pub use yahoo::Yahoo;
 
-use anyhow::{anyhow, Result};
+use crate::schema;
+use crate::utils;
+use anyhow::Result;
 use chrono;
 use derive_more;
 use polars::prelude::*;
 
 pub trait IScraper {
-    fn ticker(&self) -> String;
-    fn load(&mut self, ticker: String, search_interval: SearchBy) -> Result<&Self>;
+    fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self;
+    fn with_country(&mut self, contry: schema::Country) -> &mut Self;
+    fn load(&mut self, search_interval: SearchBy) -> Result<&Self>;
     fn quotes(&self) -> Result<Quotes>;
     fn splits(&self) -> Result<Splits>;
     fn dividends(&self) -> Result<Dividends>;
@@ -18,7 +21,7 @@ pub type Quotes = ElementSet;
 pub type Splits = ElementSet;
 pub type Dividends = ElementSet;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Element {
     pub date: chrono::NaiveDate,
     pub number: f64,
@@ -26,8 +29,15 @@ pub struct Element {
 
 #[derive(Debug)]
 pub struct ElementSet {
-    columns: (crate::schema::Columns, crate::schema::Columns),
+    columns: (schema::Columns, schema::Columns),
     data: Vec<Element>,
+}
+
+impl std::ops::Deref for ElementSet {
+    type Target = [Element];
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
 }
 
 impl std::convert::TryFrom<ElementSet> for DataFrame {
@@ -45,7 +55,7 @@ impl std::convert::TryFrom<ElementSet> for DataFrame {
 
         Ok(DataFrame::new(vec![c1, c2])?
             .lazy()
-            .with_column(crate::utils::str_to_date(c1_name))
+            .with_column(utils::polars::str_to_date(c1_name))
             .collect()?)
     }
 }

@@ -38,3 +38,10 @@ pub enum Type {
     Cash,
     Other,
 }
+#[derive(Debug, strum_macros::Display, strum::IntoStaticStr)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum Country {
+    Usa,
+    Uk,
+    Bra,
+}

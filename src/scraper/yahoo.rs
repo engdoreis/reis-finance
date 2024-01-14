@@ -29,12 +29,21 @@ impl Yahoo {
 }
 
 impl IScraper for Yahoo {
-    fn ticker(&self) -> String {
-        self.ticker.clone()
+    fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
+        self.ticker = ticker.into();
+        self
     }
 
-    fn load(&mut self, ticker: String, search_interval: SearchBy) -> Result<&Self> {
-        self.ticker = ticker;
+    fn with_country(&mut self, country: schema::Country) -> &mut Self {
+        self.ticker += match country {
+            schema::Country::Usa => "",
+            schema::Country::Uk => ".L",
+            schema::Country::Bra => ".SA",
+        };
+        self
+    }
+
+    fn load(&mut self, search_interval: SearchBy) -> Result<&Self> {
         self.response = Some(match search_interval {
             SearchBy::PeriodFromNow(range) => tokio_test::block_on(self.provider.get_quote_range(
                 &self.ticker,
@@ -139,17 +148,15 @@ mod unittest {
 
         let mut yh = Yahoo::new();
         let data = yh
-            .load(
-                "AAPL".to_string(),
-                SearchBy::TimeRange {
-                    start: "2023-08-06".parse().unwrap(),
-                    end: "2024-01-06".parse().unwrap(),
-                    interval: Interval::Day(1),
-                },
-            )
+            .with_ticker("AAPL")
+            .load(SearchBy::TimeRange {
+                start: "2023-08-06".parse().unwrap(),
+                end: "2024-01-06".parse().unwrap(),
+                interval: Interval::Day(1),
+            })
             .unwrap();
 
-        let mut quotes = data.quotes().unwrap().into_dataframe().unwrap();
+        let mut quotes = data.quotes().unwrap().try_into().unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -170,17 +177,15 @@ mod unittest {
 
         let mut yh = Yahoo::new();
         let data = yh
-            .load(
-                "GOOGL".to_string(),
-                SearchBy::TimeRange {
-                    start: "2022-01-06".parse().unwrap(),
-                    end: "2023-01-06".parse().unwrap(),
-                    interval: Interval::Day(1),
-                },
-            )
+            .with_ticker("GOOGL")
+            .load(SearchBy::TimeRange {
+                start: "2022-01-06".parse().unwrap(),
+                end: "2023-01-06".parse().unwrap(),
+                interval: Interval::Day(1),
+            })
             .unwrap();
 
-        let mut splits = data.splits().unwrap().into_dataframe().unwrap();
+        let mut splits = data.splits().unwrap().try_into().unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -201,17 +206,15 @@ mod unittest {
 
         let mut yh = Yahoo::new();
         let data = yh
-            .load(
-                "AAPL".to_string(),
-                SearchBy::TimeRange {
-                    start: "2022-01-06".parse().unwrap(),
-                    end: "2023-01-06".parse().unwrap(),
-                    interval: Interval::Day(1),
-                },
-            )
+            .with_ticker("AAPL")
+            .load(SearchBy::TimeRange {
+                start: "2022-01-06".parse().unwrap(),
+                end: "2023-01-06".parse().unwrap(),
+                interval: Interval::Day(1),
+            })
             .unwrap();
 
-        let mut div = data.dividends().unwrap().into_dataframe().unwrap();
+        let mut div = data.dividends().unwrap().try_into().unwrap();
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -223,5 +226,51 @@ mod unittest {
             utils::test::fs::compare_files(reference_output, output).unwrap(),
             "Run the command to check the diff: meld {reference_output} {output}"
         );
+    }
+    #[test]
+    fn get_quotes_with_country_uk_success() {
+        let mut yh = Yahoo::new();
+        let data = yh
+            .with_ticker("TSCO")
+            .with_country(schema::Country::Uk)
+            .load(SearchBy::TimeRange {
+                start: "2023-01-05".parse().unwrap(),
+                end: "2023-01-06".parse().unwrap(),
+                interval: Interval::Day(1),
+            })
+            .unwrap()
+            .quotes()
+            .unwrap();
+
+        assert_eq!(
+            data.first().unwrap(),
+            &Element {
+                date: "2023-01-05".parse().unwrap(),
+                number: 2.3850000000000002,
+            }
+        )
+    }
+    #[test]
+    fn get_quotes_with_country_br_success() {
+        let mut yh = Yahoo::new();
+        let data = yh
+            .with_ticker("WEGE3")
+            .with_country(schema::Country::Bra)
+            .load(SearchBy::TimeRange {
+                start: "2023-01-05".parse().unwrap(),
+                end: "2023-01-06".parse().unwrap(),
+                interval: Interval::Day(1),
+            })
+            .unwrap()
+            .quotes()
+            .unwrap();
+
+        assert_eq!(
+            data.first().unwrap(),
+            &Element {
+                date: "2023-01-05".parse().unwrap(),
+                number: 37.47999954223633,
+            }
+        )
     }
 }
