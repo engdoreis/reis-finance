@@ -45,7 +45,7 @@ impl IScraper for Yahoo {
             schema::Country::Usa => "",
             schema::Country::Uk => ".L",
             schema::Country::Bra => ".SA",
-            schema::Country::Unknown => "",
+            schema::Country::Unknown => ".L",
         };
         self
     }
