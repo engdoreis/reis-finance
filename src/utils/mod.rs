@@ -76,6 +76,7 @@ pub mod polars {
 
         pub fn profit_rate() -> Expr {
             ((col(schema::Columns::Profit.into()) / col(schema::Columns::Amount.into())) * lit(100))
+                .fill_nan(0)
                 .alias(schema::Columns::ProfitRate.into())
         }
     }

@@ -90,6 +90,20 @@ impl Portfolio {
         self
     }
 
+    pub fn with_uninvested_cash(mut self, cash: DataFrame) -> Self {
+        self.orders = self
+            .orders
+            .clone()
+            .join(
+                cash.lazy(),
+                [col(schema::Columns::Ticker.into())],
+                [col(schema::Columns::Ticker.into())],
+                JoinArgs::new(JoinType::Outer { coalesce: true }),
+            )
+            .fill_null(0f64);
+        self
+    }
+
     pub fn collect(self) -> Result<DataFrame> {
         let exclude: &[&str] = &[schema::Columns::Country.into()];
         Ok(self

@@ -5,7 +5,8 @@ use polars::prelude::DataFrame;
 use reis_finance_lib::broker::{IBroker, Trading212};
 use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::portfolio::Portfolio;
-use reis_finance_lib::scraper::{self, IScraper, Yahoo};
+use reis_finance_lib::scraper::Yahoo;
+use reis_finance_lib::uninvested;
 
 fn main() -> Result<()> {
     let broker = Trading212::new();
@@ -26,13 +27,17 @@ fn main() -> Result<()> {
     let dividends = Dividends::new(orders.clone()).by_ticker()?;
     println!("{:?}", &dividends);
 
+    let cash = uninvested::Cash::new(orders.clone()).collect()?;
+    println!("{:?}", &cash);
+
     let portfolio = Portfolio::new(orders.clone(), &mut yahoo_scraper)?
         .with_dividends(dividends)
+        .with_uninvested_cash(cash)
         .collect()?;
     println!("{:?}", portfolio);
 
-    let privot = Dividends::new(orders.clone()).pivot()?;
-    println!("{:?}", &privot);
+    let pivot = Dividends::new(orders.clone()).pivot()?;
+    println!("{:?}", &pivot);
 
     Ok(())
 }
