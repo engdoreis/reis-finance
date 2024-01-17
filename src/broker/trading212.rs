@@ -97,15 +97,11 @@ impl IBroker for Trading212 {
             .with_columns([
                 //Create new columns
                 lit(Type::Stock.to_string()).alias(Columns::Type.into()),
-                //Make the qty negative when selling.
-                when(
-                    col(Columns::Action.into())
-                        .str()
-                        .contains_literal(lit::<&str>(Action::Sell.into())),
-                )
-                .then(col(Columns::Qty.into()) * lit(-1))
-                .otherwise(col(Columns::Qty.into())),
-            ]);
+            ])
+            .with_column(
+                (col(Columns::Amount.into()) / col(Columns::Qty.into()))
+                    .alias(Columns::Price.into()),
+            );
 
         Ok(out.collect()?)
     }
