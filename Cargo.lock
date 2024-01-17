@@ -1454,6 +1454,7 @@ dependencies = [
  "glob",
  "lazy_static",
  "polars",
+ "polars-lazy",
  "strum",
  "strum_macros",
  "time",

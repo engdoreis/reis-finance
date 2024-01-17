@@ -56,17 +56,27 @@ pub mod polars {
     pub mod compute {
         use crate::schema;
         use polars::prelude::*;
-        pub fn yeld() -> Expr {
+        pub fn captal_gain_rate() -> Expr {
             ((col(schema::Columns::MarketPrice.into()) / col(schema::Columns::AveragePrice.into())
                 - lit(1))
                 * lit(100))
-            .alias(schema::Columns::Yield.into())
+            .alias(schema::Columns::CaptalGainRate.into())
         }
 
-        pub fn returns() -> Expr {
+        pub fn captal_gain() -> Expr {
             ((col(schema::Columns::MarketPrice.into()) - col(schema::Columns::AveragePrice.into()))
                 * col(schema::Columns::AccruedQty.into()))
-            .alias(schema::Columns::Returns.into())
+            .alias(schema::Columns::CaptalGain.into())
+        }
+
+        pub fn profit() -> Expr {
+            (col(schema::Columns::CaptalGain.into()) + col(schema::Columns::Dividends.into()))
+                .alias(schema::Columns::Profit.into())
+        }
+
+        pub fn profit_rate() -> Expr {
+            ((col(schema::Columns::Profit.into()) / col(schema::Columns::Amount.into())) * lit(100))
+                .alias(schema::Columns::ProfitRate.into())
         }
     }
 }

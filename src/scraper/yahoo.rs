@@ -10,6 +10,7 @@ pub struct Yahoo {
     ticker: String,
     provider: yahoo::YahooConnector,
     response: Option<yahoo::YResponse>,
+    currency_converter: f64,
 }
 
 impl Default for Yahoo {
@@ -24,6 +25,7 @@ impl Yahoo {
             ticker: "".to_string(),
             provider: yahoo::YahooConnector::new(),
             response: None,
+            currency_converter: 1.0,
         }
     }
 
@@ -41,13 +43,15 @@ impl IScraper for Yahoo {
     }
 
     fn with_country(&mut self, country: schema::Country) -> &mut Self {
-        self.ticker += match country {
-            schema::Country::Usa => "",
-            schema::Country::Uk => ".L",
-            schema::Country::Brazil => ".SA",
-            schema::Country::Ireland => ".L",
+        let (sufix, multiplier) = match country {
+            schema::Country::Usa => ("", 1.0),
+            schema::Country::Uk => (".L", 0.01),
+            schema::Country::Brazil => (".SA", 1.0),
+            schema::Country::Ireland => (".L", 1.0),
             schema::Country::Unknown => panic!("Country must be known"),
         };
+        self.ticker += sufix;
+        self.currency_converter = multiplier;
         self
     }
 
@@ -97,7 +101,7 @@ impl IScraper for Yahoo {
                         .timestamp_opt(quote.timestamp as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: quote.close,
+                    number: quote.close * self.currency_converter,
                 })
                 .collect(),
         })

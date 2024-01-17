@@ -4,24 +4,16 @@ use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 use std::collections::HashMap;
+use std::str::FromStr;
 
-pub struct Portfolio<T> {
+pub struct Portfolio {
     orders: LazyFrame,
-    scraper: T,
 }
 
-impl<T: IScraper> Portfolio<T> {
-    pub fn new(orders: DataFrame, scraper: T) -> Portfolio<T> {
-        Portfolio {
-            orders: orders.lazy(),
-            scraper,
-        }
-    }
-
-    pub fn collect(&mut self) -> Result<DataFrame> {
-        let portfolio = self
-            .orders
-            .clone()
+impl Portfolio {
+    pub fn new<T: IScraper>(orders: DataFrame, scraper: &mut T) -> Result<Portfolio> {
+        let result = orders
+            .lazy()
             .filter(col(schema::Columns::Ticker.into()).neq(lit("CASH")))
             .filter(
                 col(schema::Columns::Action.into())
@@ -33,21 +25,22 @@ impl<T: IScraper> Portfolio<T> {
             .agg([
                 col(schema::Columns::Amount.into())
                     .sum()
-                    .alias(schema::Columns::Total.into()),
+                    .alias(schema::Columns::Amount.into()),
                 col(schema::Columns::Qty.into())
                     .sum()
                     .alias(schema::Columns::AccruedQty.into()),
+                col(schema::Columns::Country.into()).first(),
             ])
             .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
             .with_column(
-                (col(schema::Columns::Total.into()) / col(schema::Columns::AccruedQty.into()))
+                (col(schema::Columns::Amount.into()) / col(schema::Columns::AccruedQty.into()))
                     .alias(schema::Columns::AveragePrice.into()),
             )
             .collect()?;
 
-        let quotes = self.quotes(&portfolio)?;
+        let quotes = Self::quotes(scraper, &result)?;
 
-        let portfolio = portfolio
+        let result = result
             .lazy()
             .with_column(
                 col(schema::Columns::Ticker.into())
@@ -66,27 +59,56 @@ impl<T: IScraper> Portfolio<T> {
                     .alias(schema::Columns::MarketPrice.into()),
             )
             .with_columns([
-                utils::polars::compute::yeld(),
-                utils::polars::compute::returns(),
-            ])
-            .collect()?;
+                utils::polars::compute::captal_gain_rate(),
+                utils::polars::compute::captal_gain(),
+            ]);
 
-        Ok(portfolio)
+        Ok(Portfolio { orders: result })
     }
 
-    fn quotes(&mut self, df: &DataFrame) -> Result<HashMap<String, f64>> {
-        let tickers = df.column(schema::Columns::Ticker.into())?.unique()?;
-        let quotes: HashMap<String, f64> = tickers
+    pub fn with_dividends(mut self, dividends: DataFrame) -> Self {
+        self.orders = self
+            .orders
+            .clone()
+            .join(
+                dividends.lazy(),
+                [col(schema::Columns::Ticker.into())],
+                [col(schema::Columns::Ticker.into())],
+                JoinArgs::new(JoinType::Left),
+            )
+            .fill_null(0f64);
+        self
+    }
+
+    pub fn collect(self) -> Result<DataFrame> {
+        let exclude: &[&str] = &[schema::Columns::Country.into()];
+        Ok(self
+            .orders
+            .select([col("*").exclude(exclude)])
+            .with_column(utils::polars::compute::profit())
+            .with_column(utils::polars::compute::profit_rate())
+            .collect()?)
+    }
+
+    fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
+        let t: &str = schema::Columns::Ticker.into();
+        let c: &str = schema::Columns::Country.into();
+        let tickers = df.columns([t, c])?;
+
+        let quotes: HashMap<String, f64> = tickers[0]
             .iter()
-            .map(|ticker| {
+            .zip(tickers[1].iter())
+            .map(|(ticker, country)| {
                 let AnyValue::String(ticker) = ticker else {
-                    panic!("Failed to get column name from: {ticker}");
+                    panic!("Can't get ticker from: {ticker}");
+                };
+                let AnyValue::String(country) = country else {
+                    panic!("Can't get country from: {country}");
                 };
 
-                let price = self
-                    .scraper
+                let price = scraper
                     .with_ticker(ticker)
-                    .with_country(schema::Country::Uk)
+                    .with_country(schema::Country::from_str(country).unwrap())
                     .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
                     .unwrap_or_else(|_| panic!("Can't read ticker {ticker}"))
                     .quotes()
@@ -94,7 +116,7 @@ impl<T: IScraper> Portfolio<T> {
                 (ticker.to_owned(), price.first().unwrap().number)
             })
             .collect();
-        dbg!(&quotes);
+
         Ok(quotes)
     }
 }

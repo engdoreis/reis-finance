@@ -16,11 +16,14 @@ pub enum Columns {
     Country,
     AveragePrice,
     MarketPrice,
-    Yield,
+    Dividends,
     DividendYield,
-    Returns,
+    CaptalGain,
+    CaptalGainRate,
     AccruedQty,
     Total,
+    Profit,
+    ProfitRate,
 }
 
 #[derive(Debug, strum::IntoStaticStr)]
@@ -45,7 +48,7 @@ pub enum Type {
     Cash,
     Other,
 }
-#[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr)]
+#[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum Country {
     #[default]
@@ -66,3 +69,9 @@ impl Country {
         }
     }
 }
+
+// impl std::convert::From<&str> for Country {
+//     fn from(value: &str) -> Self {
+//         Country::from_isin(value)
+//     }
+// }
