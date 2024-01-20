@@ -1,6 +1,4 @@
 use crate::schema;
-use crate::scraper::{self, IScraper};
-use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 

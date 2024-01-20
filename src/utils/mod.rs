@@ -15,7 +15,9 @@ pub mod test {
 }
 
 pub mod polars {
+    use anyhow::Result;
     use polars::prelude::*;
+
     pub fn epoc_to_date(column: &str) -> Expr {
         (col(column) * lit(1000))
             .cast(DataType::Datetime(datatypes::TimeUnit::Milliseconds, None))
@@ -53,6 +55,20 @@ pub mod polars {
             GetOutput::from_type(DataType::String),
         )
     }
+
+    pub fn column_f64(df: &DataFrame, name: &str) -> Result<Vec<f64>> {
+        Ok(df
+            .column(name)?
+            .iter()
+            .map(|value| {
+                let AnyValue::Float64(value) = value else {
+                    panic!("Can't unwrap {value} as Float64");
+                };
+                value
+            })
+            .collect())
+    }
+
     pub mod compute {
         use crate::schema;
         use polars::prelude::*;
@@ -78,6 +94,16 @@ pub mod polars {
             ((col(schema::Columns::Profit.into()) / col(schema::Columns::Amount.into())) * lit(100))
                 .fill_nan(0)
                 .alias(schema::Columns::ProfitRate.into())
+        }
+
+        pub fn negative_qty_on_sell() -> Expr {
+            when(
+                col(schema::Columns::Action.into())
+                    .str()
+                    .contains_literal(lit::<&str>(schema::Action::Sell.into())),
+            )
+            .then(col(schema::Columns::Qty.into()) * lit(-1))
+            .otherwise(col(schema::Columns::Qty.into()))
         }
     }
 }

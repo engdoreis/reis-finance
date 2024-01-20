@@ -3,6 +3,7 @@ use crate::scraper::{self, IScraper};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
+use polars_lazy::dsl::as_struct;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -14,31 +15,15 @@ impl Portfolio {
     pub fn new(orders: DataFrame) -> Portfolio {
         let result = orders
             .lazy()
-            .filter(col(schema::Columns::Ticker.into()).neq(lit("CASH")))
+            // Filter buy and sell actions.
             .filter(
                 col(schema::Columns::Action.into())
                     .eq(lit::<&str>(schema::Action::Buy.into()))
                     .or(col(schema::Columns::Action.into())
                         .eq(lit::<&str>(schema::Action::Sell.into()))),
             )
-            .with_column(
-                //Make the qty negative when selling.
-                when(
-                    col(schema::Columns::Action.into())
-                        .str()
-                        .contains_literal(lit::<&str>(schema::Action::Sell.into())),
-                )
-                .then(col(schema::Columns::Qty.into()) * lit(-1))
-                .otherwise(col(schema::Columns::Qty.into())),
-            );
-
-        Portfolio { orders: result }
-    }
-
-    pub fn with_quotes<T: IScraper>(mut self, scraper: &mut T) -> Result<Self> {
-        let result = self
-            .orders
-            .clone()
+            .with_column(utils::polars::compute::negative_qty_on_sell())
+            // Compute the Amount, and AccruedQty by ticker.
             .group_by([col(schema::Columns::Ticker.into())])
             .agg([
                 col(schema::Columns::Amount.into())
@@ -49,8 +34,13 @@ impl Portfolio {
                     .alias(schema::Columns::AccruedQty.into()),
                 col(schema::Columns::Country.into()).first(),
             ])
-            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
-            .collect()?;
+            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)));
+
+        Portfolio { orders: result }
+    }
+
+    pub fn with_quotes<T: IScraper>(mut self, scraper: &mut T) -> Result<Self> {
+        let result = self.orders.clone().collect()?;
 
         let quotes = Self::quotes(scraper, &result)?;
 
@@ -162,10 +152,91 @@ impl Portfolio {
     }
 }
 
+pub struct PerpetualInventory {}
+
+impl PerpetualInventory {
+    /// The Perpetual inventory average cost can be computed by the formula:
+    /// avg[n] = ((avg[n-1] * cum_qty[n-1] + amount[n] ) / cum_qty[n]) if (qty[n] > 0) otherwise avg[n-1]
+    pub fn compute(orders: &DataFrame) -> Result<DataFrame> {
+        let result = orders
+            .clone()
+            .lazy()
+            .with_column(utils::polars::compute::negative_qty_on_sell())
+            .with_column(
+                // Use struct type to operate over two columns.
+                as_struct(vec![
+                    col(schema::Columns::Price.into()),
+                    col(schema::Columns::Qty.into()),
+                ])
+                // Apply function on group by Ticker.
+                .apply(
+                    |data| {
+                        // data is a Series with the whole column data after grouping.
+                        let (mut cum_price, mut cum_qty) = (0.0, 0.0);
+                        let (avg, cum_qty): (Vec<_>, Vec<_>) = data
+                            .struct_()?
+                            .into_iter()
+                            .map(|values| {
+                                // values is a slice with all fields of the struct.
+                                let mut values = values.iter();
+                                //Unwrap fields of the struct as f64.
+                                let AnyValue::Float64(price) = values.next().unwrap() else {
+                                    panic!("Can't unwrap as Float64");
+                                };
+                                let AnyValue::Float64(qty) = values.next().unwrap() else {
+                                    panic!("Can't unwrap as Float64");
+                                };
+
+                                // Compute the cum_qty and average price using the formula above and return a tuple that will be converted into a struct.
+                                let new_cum_qty = cum_qty + qty;
+                                cum_price = if *qty < 0.0 {
+                                    cum_price
+                                } else {
+                                    (cum_price * cum_qty + price * qty) / new_cum_qty
+                                };
+                                cum_qty = new_cum_qty;
+                                (cum_price, cum_qty)
+                            })
+                            .unzip();
+
+                        // Maybe there's a batter way to construct a series of struct from map?
+                        Ok(Some(
+                            df!(
+                                schema::Columns::AveragePrice.into() => avg.as_slice(),
+                                schema::Columns::AccruedQty.into() => cum_qty.as_slice(),
+                            )?
+                            .into_struct("")
+                            .into_series(),
+                        ))
+                    },
+                    GetOutput::from_type(DataType::Struct(vec![Field {
+                        name: "".into(),
+                        dtype: DataType::Float64,
+                    }])),
+                )
+                .over([col(schema::Columns::Ticker.into())])
+                .alias("struct"),
+            )
+            // Break the struct column into separated columns.
+            .unnest(["struct"])
+            .collect()?;
+
+        let result = result
+            .lazy()
+            .group_by([col(schema::Columns::Ticker.into())])
+            .agg([
+                col(schema::Columns::AveragePrice.into()).last(),
+                col(schema::Columns::AccruedQty.into()).last(),
+            ])
+            .collect()?;
+        Ok(result)
+    }
+}
 mod unittest {
     use super::*;
     use crate::schema::Action::*;
     use crate::schema::Columns::*;
+    use crate::schema::Country::*;
     use polars::prelude::*;
 
     #[test]
@@ -177,32 +248,42 @@ mod unittest {
             Sell.into(),
             Sell.into(),
             Buy.into(),
+            Buy.into(),
+            Sell.into(),
+            Buy.into(),
         ];
-        let country: &[&str] = &[schema::Country::Usa.into(); 6];
-        let ticker: &[&str] = &["GOOGL"; 6];
+        let country: &[&str] = &[Usa.into(); 9];
+        let mut tickers = vec!["GOOGL"; 5];
+        tickers.extend(vec!["APPL", "GOOGL", "APPL", "APPL"]);
+        let ticker_str: &str = Ticker.into();
+
         let orders = df! (
             Action.into() => actions,
-            Qty.into() => [8, 4, 10, 4, 8, 10],
-            Ticker.into() => ticker,
+            Qty.into() => [8.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5],
+            Ticker.into() => tickers,
             Country.into() => country,
-            Amount.into() => &[34.0, 32.0, 36.0, 35.0, 36.0, 34.0],
+            Price.into() => &[34.45, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60],
         )
         .unwrap();
 
-        let result = Portfolio::new(orders)
-            .with_average_price()
+        let result = PerpetualInventory::compute(&orders)
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
             .collect()
             .unwrap();
 
-        assert_eq!(
-            result,
-            df! (
-                Ticker.into() => &["GOOGL"],
-                Amount.into() => &[685.4545455],
-                AccruedQty.into() => &[20],
-                AveragePrice.into() => &[34.27272727],
-            )
-            .unwrap()
-        );
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            AveragePrice.into() => &[98.03, 34.55],
+            AccruedQty.into() => &[13.20, 20.0],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
     }
 }
