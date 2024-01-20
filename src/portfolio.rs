@@ -11,7 +11,7 @@ pub struct Portfolio {
 }
 
 impl Portfolio {
-    pub fn new<T: IScraper>(orders: DataFrame, scraper: &mut T) -> Result<Portfolio> {
+    pub fn new(orders: DataFrame) -> Portfolio {
         let result = orders
             .lazy()
             .filter(col(schema::Columns::Ticker.into()).neq(lit("CASH")))
@@ -30,7 +30,15 @@ impl Portfolio {
                 )
                 .then(col(schema::Columns::Qty.into()) * lit(-1))
                 .otherwise(col(schema::Columns::Qty.into())),
-            )
+            );
+
+        Portfolio { orders: result }
+    }
+
+    pub fn with_quotes<T: IScraper>(mut self, scraper: &mut T) -> Result<Self> {
+        let result = self
+            .orders
+            .clone()
             .group_by([col(schema::Columns::Ticker.into())])
             .agg([
                 col(schema::Columns::Amount.into())
@@ -42,38 +50,52 @@ impl Portfolio {
                 col(schema::Columns::Country.into()).first(),
             ])
             .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
-            .with_column(
-                (col(schema::Columns::Amount.into()) / col(schema::Columns::AccruedQty.into()))
-                    .alias(schema::Columns::AveragePrice.into()),
-            )
             .collect()?;
 
         let quotes = Self::quotes(scraper, &result)?;
 
-        let result = result
-            .lazy()
-            .with_column(
-                col(schema::Columns::Ticker.into())
-                    .map(
-                        move |series| {
-                            Ok(Some(
-                                series
-                                    .str()?
-                                    .into_iter()
-                                    .map(|row| quotes.get(row.expect("Can't get row")).unwrap())
-                                    .collect(),
-                            ))
-                        },
-                        GetOutput::from_type(DataType::Float64),
-                    )
-                    .alias(schema::Columns::MarketPrice.into()),
-            )
-            .with_columns([
-                utils::polars::compute::captal_gain_rate(),
-                utils::polars::compute::captal_gain(),
-            ]);
+        let result = result.lazy().with_column(
+            col(schema::Columns::Ticker.into())
+                .map(
+                    move |series| {
+                        Ok(Some(
+                            series
+                                .str()?
+                                .into_iter()
+                                .map(|row| quotes.get(row.expect("Can't get row")).unwrap())
+                                .collect(),
+                        ))
+                    },
+                    GetOutput::from_type(DataType::Float64),
+                )
+                .alias(schema::Columns::MarketPrice.into()),
+        );
+        self.orders = result;
+        Ok(self)
+    }
 
-        Ok(Portfolio { orders: result })
+    pub fn with_average_price(mut self) -> Self {
+        self.orders = self.orders.with_column(
+            (col(schema::Columns::Amount.into()) / col(schema::Columns::AccruedQty.into()))
+                .alias(schema::Columns::AveragePrice.into()),
+        );
+        self
+    }
+
+    pub fn with_capital_gain(mut self) -> Self {
+        self.orders = self.orders.with_columns([
+            utils::polars::compute::captal_gain_rate(),
+            utils::polars::compute::captal_gain(),
+        ]);
+        self
+    }
+
+    pub fn with_profit(mut self) -> Self {
+        self.orders = self
+            .orders
+            .with_column(utils::polars::compute::profit())
+            .with_column(utils::polars::compute::profit_rate());
+        self
     }
 
     pub fn with_dividends(mut self, dividends: DataFrame) -> Self {
@@ -106,12 +128,7 @@ impl Portfolio {
 
     pub fn collect(self) -> Result<DataFrame> {
         let exclude: &[&str] = &[schema::Columns::Country.into()];
-        Ok(self
-            .orders
-            .select([col("*").exclude(exclude)])
-            .with_column(utils::polars::compute::profit())
-            .with_column(utils::polars::compute::profit_rate())
-            .collect()?)
+        Ok(self.orders.select([col("*").exclude(exclude)]).collect()?)
     }
 
     fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
@@ -142,5 +159,50 @@ impl Portfolio {
             .collect();
 
         Ok(quotes)
+    }
+}
+
+mod unittest {
+    use super::*;
+    use crate::schema::Action::*;
+    use crate::schema::Columns::*;
+    use polars::prelude::*;
+
+    #[test]
+    fn average_cost_success() {
+        let actions: &[&str] = &[
+            Buy.into(),
+            Buy.into(),
+            Buy.into(),
+            Sell.into(),
+            Sell.into(),
+            Buy.into(),
+        ];
+        let country: &[&str] = &[schema::Country::Usa.into(); 6];
+        let ticker: &[&str] = &["GOOGL"; 6];
+        let orders = df! (
+            Action.into() => actions,
+            Qty.into() => [8, 4, 10, 4, 8, 10],
+            Ticker.into() => ticker,
+            Country.into() => country,
+            Amount.into() => &[34.0, 32.0, 36.0, 35.0, 36.0, 34.0],
+        )
+        .unwrap();
+
+        let result = Portfolio::new(orders)
+            .with_average_price()
+            .collect()
+            .unwrap();
+
+        assert_eq!(
+            result,
+            df! (
+                Ticker.into() => &["GOOGL"],
+                Amount.into() => &[685.4545455],
+                AccruedQty.into() => &[20],
+                AveragePrice.into() => &[34.27272727],
+            )
+            .unwrap()
+        );
     }
 }

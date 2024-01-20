@@ -30,11 +30,16 @@ fn main() -> Result<()> {
     let cash = uninvested::Cash::new(orders.clone()).collect()?;
     println!("{:?}", &cash);
 
-    let portfolio = Portfolio::new(orders.clone(), &mut yahoo_scraper)?
+    let portfolio = Portfolio::new(orders.clone())
+        .with_quotes(&mut yahoo_scraper)?
+        .with_average_price()
+        .with_capital_gain()
         .with_dividends(dividends)
         .with_uninvested_cash(cash)
+        .with_profit()
         .collect()?;
-    println!("{:?}", portfolio);
+    println!("{:?}", &portfolio);
+    println!("{:?}", &portfolio.get_column_names());
 
     let pivot = Dividends::new(orders.clone()).pivot()?;
     println!("{:?}", &pivot);
