@@ -152,15 +152,21 @@ impl Portfolio {
     }
 }
 
-pub struct PerpetualInventory {}
+pub struct PerpetualInventory {
+    data: LazyFrame,
+}
 
 impl PerpetualInventory {
+    pub fn new(orders: &DataFrame) -> Self {
+        Self {
+            data: orders.clone().lazy(),
+        }
+    }
     /// The Perpetual inventory average cost can be computed by the formula:
     /// avg[n] = ((avg[n-1] * cum_qty[n-1] + amount[n] ) / cum_qty[n]) if (qty[n] > 0) otherwise avg[n-1]
-    pub fn compute(orders: &DataFrame) -> Result<DataFrame> {
-        let result = orders
-            .clone()
-            .lazy()
+    pub fn with_cumulative_average(mut self) -> Self {
+        self.data = self
+            .data
             .with_column(utils::polars::compute::negative_qty_on_sell())
             .with_column(
                 // Use struct type to operate over two columns.
@@ -218,20 +224,28 @@ impl PerpetualInventory {
                 .alias("struct"),
             )
             // Break the struct column into separated columns.
-            .unnest(["struct"])
-            .collect()?;
+            .unnest(["struct"]);
+        self
+    }
 
-        let result = result
+    pub fn collect(self) -> Result<DataFrame> {
+        Ok(self.data.collect()?)
+    }
+
+    pub fn collect_average(self) -> Result<DataFrame> {
+        Ok(self
+            .data
+            .collect()?
             .lazy()
             .group_by([col(schema::Columns::Ticker.into())])
             .agg([
                 col(schema::Columns::AveragePrice.into()).last(),
                 col(schema::Columns::AccruedQty.into()).last(),
             ])
-            .collect()?;
-        Ok(result)
+            .collect()?)
     }
 }
+
 mod unittest {
     use super::*;
     use crate::schema::Action::*;
@@ -266,7 +280,9 @@ mod unittest {
         )
         .unwrap();
 
-        let result = PerpetualInventory::compute(&orders)
+        let result = PerpetualInventory::new(&orders)
+            .with_cumulative_average()
+            .collect_average()
             .unwrap()
             .lazy()
             .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
