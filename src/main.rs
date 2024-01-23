@@ -1,7 +1,7 @@
 extern crate reis_finance_lib;
 
 use anyhow::Result;
-use polars::prelude::DataFrame;
+
 use reis_finance_lib::broker::{IBroker, Trading212};
 use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::portfolio::Portfolio;
