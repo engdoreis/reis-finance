@@ -1,19 +1,21 @@
+use crate::perpetutal_inventory::AverageCost;
 use crate::schema;
 use crate::scraper::{self, IScraper};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
-use polars_lazy::dsl::as_struct;
 use std::collections::HashMap;
 use std::str::FromStr;
 
 pub struct Portfolio {
-    orders: LazyFrame,
+    orders: DataFrame,
+    data: LazyFrame,
 }
 
 impl Portfolio {
-    pub fn new(orders: DataFrame) -> Portfolio {
+    pub fn new(orders: &DataFrame) -> Portfolio {
         let result = orders
+            .clone()
             .lazy()
             // Filter buy and sell actions.
             .filter(
@@ -36,11 +38,14 @@ impl Portfolio {
             ])
             .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)));
 
-        Portfolio { orders: result }
+        Portfolio {
+            data: result,
+            orders: orders.clone(),
+        }
     }
 
     pub fn with_quotes<T: IScraper>(mut self, scraper: &mut T) -> Result<Self> {
-        let result = self.orders.clone().collect()?;
+        let result = self.data.clone().collect()?;
 
         let quotes = Self::quotes(scraper, &result)?;
 
@@ -60,20 +65,29 @@ impl Portfolio {
                 )
                 .alias(schema::Columns::MarketPrice.into()),
         );
-        self.orders = result;
+        self.data = result;
         Ok(self)
     }
 
-    pub fn with_average_price(mut self) -> Self {
-        self.orders = self.orders.with_column(
-            (col(schema::Columns::Amount.into()) / col(schema::Columns::AccruedQty.into()))
-                .alias(schema::Columns::AveragePrice.into()),
-        );
-        self
+    pub fn with_average_price(mut self) -> Result<Self> {
+        let avg = AverageCost::new(&self.orders)
+            .with_cumulative()
+            .collect_latest()?;
+
+        self.data = self
+            .data
+            .join(
+                avg.lazy(),
+                [col(schema::Columns::Ticker.into())],
+                [col(schema::Columns::Ticker.into())],
+                JoinArgs::new(JoinType::Left),
+            )
+            .fill_null(0f64);
+        Ok(self)
     }
 
     pub fn with_capital_gain(mut self) -> Self {
-        self.orders = self.orders.with_columns([
+        self.data = self.data.with_columns([
             utils::polars::compute::captal_gain_rate(),
             utils::polars::compute::captal_gain(),
         ]);
@@ -81,16 +95,16 @@ impl Portfolio {
     }
 
     pub fn with_profit(mut self) -> Self {
-        self.orders = self
-            .orders
+        self.data = self
+            .data
             .with_column(utils::polars::compute::profit())
             .with_column(utils::polars::compute::profit_rate());
         self
     }
 
     pub fn with_dividends(mut self, dividends: DataFrame) -> Self {
-        self.orders = self
-            .orders
+        self.data = self
+            .data
             .clone()
             .join(
                 dividends.lazy(),
@@ -103,8 +117,8 @@ impl Portfolio {
     }
 
     pub fn with_uninvested_cash(mut self, cash: DataFrame) -> Self {
-        self.orders = self
-            .orders
+        self.data = self
+            .data
             .clone()
             .join(
                 cash.lazy(),
@@ -117,8 +131,8 @@ impl Portfolio {
     }
 
     pub fn collect(self) -> Result<DataFrame> {
-        let exclude: &[&str] = &[schema::Columns::Country.into()];
-        Ok(self.orders.select([col("*").exclude(exclude)]).collect()?)
+        let exclude: &[&str] = &[schema::Columns::Country.into(), "^.*_right$"];
+        Ok(self.data.select([col("*").exclude(exclude)]).collect()?)
     }
 
     fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
