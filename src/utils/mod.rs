@@ -42,7 +42,12 @@ pub mod test {
             Price.into() => &[34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60],
         )
         .unwrap();
+
         orders
+            .lazy()
+            .with_column((col(Qty.into()) * col(Price.into())).alias(Amount.into()))
+            .collect()
+            .unwrap()
     }
 }
 

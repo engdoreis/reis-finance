@@ -165,3 +165,86 @@ impl Portfolio {
         Ok(quotes)
     }
 }
+
+mod unittest {
+    use super::*;
+    use crate::schema::Columns;
+    use crate::scraper::{self, Dividends, Element, ElementSet, Quotes, Splits};
+    use crate::utils;
+
+    struct Mock {}
+
+    impl scraper::IScraper for Mock {
+        fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
+            self
+        }
+
+        fn with_country(&mut self, contry: schema::Country) -> &mut Self {
+            self
+        }
+
+        fn load(&mut self, search_interval: scraper::SearchBy) -> Result<&Self> {
+            Ok(self)
+        }
+
+        fn quotes(&self) -> Result<Quotes> {
+            Ok(ElementSet {
+                columns: (Columns::Date, Columns::Price),
+                data: vec![Element {
+                    date: "2022-10-01".parse().unwrap(),
+                    number: 103.95,
+                }],
+            })
+        }
+
+        fn splits(&self) -> Result<Splits> {
+            Ok(ElementSet {
+                columns: (Columns::Date, Columns::Price),
+                data: vec![Element {
+                    date: "2022-10-01".parse().unwrap(),
+                    number: 2.0,
+                }],
+            })
+        }
+        fn dividends(&self) -> Result<Dividends> {
+            Ok(ElementSet {
+                columns: (Columns::Date, Columns::Price),
+                data: vec![Element {
+                    date: "2022-10-01".parse().unwrap(),
+                    number: 2.5,
+                }],
+            })
+        }
+    }
+
+    #[test]
+    fn portfolio_with_quotes_success() {
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
+
+        let mut scraper = Mock {};
+        let result = Portfolio::new(&orders)
+            .with_quotes(&mut scraper)
+            .unwrap()
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::MarketPrice.into() => &[103.95, 103.95],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
+    }
+}

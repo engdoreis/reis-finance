@@ -29,8 +29,8 @@ pub struct Element {
 
 #[derive(Debug)]
 pub struct ElementSet {
-    columns: (schema::Columns, schema::Columns),
-    data: Vec<Element>,
+    pub columns: (schema::Columns, schema::Columns),
+    pub data: Vec<Element>,
 }
 
 impl std::ops::Deref for ElementSet {
