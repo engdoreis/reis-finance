@@ -2,7 +2,7 @@ use strum;
 use strum_macros;
 
 #[derive(Debug, strum::IntoStaticStr)]
-#[strum(serialize_all = "UPPERCASE")]
+#[strum(serialize_all = "PascalCase")]
 pub enum Columns {
     Date,
     Ticker,
@@ -27,7 +27,7 @@ pub enum Columns {
 }
 
 #[derive(Debug, strum::IntoStaticStr)]
-#[strum(serialize_all = "UPPERCASE")]
+#[strum(serialize_all = "PascalCase")]
 pub enum Action {
     Sell,
     Buy,
@@ -40,7 +40,7 @@ pub enum Action {
 }
 
 #[derive(Debug, strum_macros::Display, strum::IntoStaticStr)]
-#[strum(serialize_all = "UPPERCASE")]
+#[strum(serialize_all = "PascalCase")]
 pub enum Type {
     Stock,
     Fii,
@@ -49,7 +49,7 @@ pub enum Type {
     Other,
 }
 #[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr, strum::EnumString)]
-#[strum(serialize_all = "UPPERCASE")]
+#[strum(serialize_all = "PascalCase")]
 pub enum Country {
     #[default]
     Unknown,

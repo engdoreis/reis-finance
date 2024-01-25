@@ -4,10 +4,10 @@ use anyhow::Result;
 
 use reis_finance_lib::broker::{IBroker, Trading212};
 use reis_finance_lib::dividends::Dividends;
+use reis_finance_lib::perpetutal_inventory::AverageCost;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::scraper::Yahoo;
 use reis_finance_lib::uninvested;
-use reis_finance_lib::perpetutal_inventory::AverageCost;
 use std::{env, error::Error};
 
 fn main() -> Result<()> {
@@ -50,9 +50,7 @@ fn main() -> Result<()> {
     let pivot = Dividends::new(orders.clone()).pivot()?;
     println!("{:?}", &pivot);
 
-    let avg = AverageCost::new(&orders)
-        .with_cumulative()
-        .collect()?;
+    let avg = AverageCost::new(&orders).with_cumulative().collect()?;
     println!("{:?}", &avg);
 
     Ok(())
