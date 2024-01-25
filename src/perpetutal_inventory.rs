@@ -106,38 +106,13 @@ impl AverageCost {
 
 mod unittest {
     use super::*;
-    use crate::schema::Action::*;
-    use crate::schema::Columns::*;
-    use crate::schema::Country::*;
-    use polars::prelude::*;
+    use crate::schema::Columns;
+    use crate::utils;
 
     #[test]
     fn average_cost_success() {
-        let actions: &[&str] = &[
-            Buy.into(),
-            Dividend.into(),
-            Buy.into(),
-            Buy.into(),
-            Sell.into(),
-            Sell.into(),
-            Buy.into(),
-            Buy.into(),
-            Sell.into(),
-            Buy.into(),
-        ];
-        let country: &[&str] = &[Usa.into(); 10];
-        let mut tickers = vec!["GOOGL"; 6];
-        tickers.extend(vec!["APPL", "GOOGL", "APPL", "APPL"]);
-        let ticker_str: &str = Ticker.into();
-
-        let orders = df! (
-            Action.into() => actions,
-            Qty.into() => [8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5],
-            Ticker.into() => tickers,
-            Country.into() => country,
-            Price.into() => &[34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60],
-        )
-        .unwrap();
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
 
         let result = AverageCost::new(&orders)
             .with_cumulative()
@@ -151,8 +126,8 @@ mod unittest {
 
         let expected = df! (
             ticker_str => &["APPL", "GOOGL"],
-            AveragePrice.into() => &[98.03, 34.55],
-            AccruedQty.into() => &[13.20, 20.0],
+            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::AccruedQty.into() => &[13.20, 20.0],
         )
         .unwrap()
         .sort(&[ticker_str], false, false)
