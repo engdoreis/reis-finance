@@ -7,9 +7,9 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn new(orders: DataFrame) -> Dividends {
+    pub fn new(orders: &DataFrame) -> Dividends {
         Dividends {
-            data: orders.lazy().filter(
+            data: orders.clone().lazy().filter(
                 col(schema::Columns::Action.into())
                     .eq(lit::<&str>(schema::Action::Dividend.into())),
             ),
@@ -56,5 +56,37 @@ impl Dividends {
             .collect()?;
 
         Ok(result)
+    }
+}
+
+mod unittest {
+    use super::*;
+    use crate::schema::Columns;
+    use crate::utils;
+
+    #[test]
+    fn dividends_by_ticker_success() {
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
+
+        let result = Dividends::new(&orders)
+            .by_ticker()
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            Columns::Dividends.into() => &[2.75, 3.26],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
     }
 }

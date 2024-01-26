@@ -31,7 +31,7 @@ fn main() -> Result<()> {
     // println!("Dividends: {:#?}", div);
     // println!("Quotes: {:?}", DataFrame::try_from(data.quotes()?)?);
 
-    let dividends = Dividends::new(orders.clone()).by_ticker()?;
+    let dividends = Dividends::new(&orders).by_ticker()?;
     println!("{:?}", &dividends);
 
     let cash = uninvested::Cash::new(orders.clone()).collect()?;
@@ -47,11 +47,8 @@ fn main() -> Result<()> {
         .collect()?;
     println!("{}", &portfolio);
 
-    let pivot = Dividends::new(orders.clone()).pivot()?;
+    let pivot = Dividends::new(&orders).pivot()?;
     println!("{:?}", &pivot);
-
-    let avg = AverageCost::new(&orders).with_cumulative().collect()?;
-    println!("{:?}", &avg);
 
     Ok(())
 }
