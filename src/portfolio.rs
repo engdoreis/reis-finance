@@ -170,16 +170,29 @@ mod unittest {
     use super::*;
     use crate::schema::Columns;
     use crate::scraper::{self, Dividends, Element, ElementSet, Quotes, Splits};
-    use crate::utils;
+    use crate::{dividends, utils};
 
-    struct Mock {}
+    struct Mock {
+        ticker: String,
+        map: HashMap<String, f64>,
+    }
+
+    impl Mock {
+        pub fn new() -> Self {
+            Mock {
+                ticker: "".into(),
+                map: HashMap::from([("GOOGL".into(), 33.87), ("APPL".into(), 103.95)]),
+            }
+        }
+    }
 
     impl scraper::IScraper for Mock {
         fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
+            self.ticker = ticker.into();
             self
         }
 
-        fn with_country(&mut self, contry: schema::Country) -> &mut Self {
+        fn with_country(&mut self, country: schema::Country) -> &mut Self {
             self
         }
 
@@ -192,7 +205,7 @@ mod unittest {
                 columns: (Columns::Date, Columns::Price),
                 data: vec![Element {
                     date: "2022-10-01".parse().unwrap(),
-                    number: 103.95,
+                    number: *self.map.get(&self.ticker).unwrap(),
                 }],
             })
         }
@@ -222,7 +235,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
         let ticker_str: &str = Columns::Ticker.into();
 
-        let mut scraper = Mock {};
+        let mut scraper = Mock::new();
         let result = Portfolio::new(&orders)
             .with_quotes(&mut scraper)
             .unwrap()
@@ -238,13 +251,175 @@ mod unittest {
             ticker_str => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
             Columns::AccruedQty.into() => &[13.20, 20.0],
-            Columns::MarketPrice.into() => &[103.95, 103.95],
+            Columns::MarketPrice.into() => &[103.95, 33.87],
         )
         .unwrap()
         .sort(&[ticker_str], false, false)
         .unwrap();
 
         // dbg!(&result);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn portfolio_with_average_price_success() {
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
+
+        let mut scraper = Mock::new();
+        let result = Portfolio::new(&orders)
+            .with_quotes(&mut scraper)
+            .unwrap()
+            .with_average_price()
+            .unwrap()
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::MarketPrice.into() => &[103.95, 33.87],
+            Columns::AveragePrice.into() => &[98.03, 34.55],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn portfolio_with_dividends_success() {
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
+
+        let dividends = df!(
+            Columns::Dividends.into() => &[1.45, 9.84],
+            Columns::Ticker.into() => &["GOOGL", "APPL"],
+        )
+        .unwrap();
+
+        let mut scraper = Mock::new();
+        let result = Portfolio::new(&orders)
+            .with_quotes(&mut scraper)
+            .unwrap()
+            .with_average_price()
+            .unwrap()
+            .with_dividends(dividends)
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::MarketPrice.into() => &[103.95, 33.87],
+            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::Dividends.into() => &[9.84, 1.45],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn portfolio_with_capital_gain_success() {
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
+
+        let mut scraper = Mock::new();
+        let result = Portfolio::new(&orders)
+            .with_quotes(&mut scraper)
+            .unwrap()
+            .with_average_price()
+            .unwrap()
+            .with_capital_gain()
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::MarketPrice.into() => &[103.95, 33.87],
+            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::CaptalGainRate.into() => &[6.039, -1.9682],
+            Columns::CaptalGain.into() => &[78.144, -13.6],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn portfolio_with_profit_success() {
+        let orders = utils::test::generate_mocking_orders();
+        let ticker_str: &str = Columns::Ticker.into();
+
+        let dividends = df!(
+            Columns::Dividends.into() => &[1.45, 9.84],
+            Columns::Ticker.into() => &["GOOGL", "APPL"],
+        )
+        .unwrap();
+
+        let mut scraper = Mock::new();
+        let result = Portfolio::new(&orders)
+            .with_quotes(&mut scraper)
+            .unwrap()
+            .with_average_price()
+            .unwrap()
+            .with_dividends(dividends)
+            .with_capital_gain()
+            .with_profit()
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
+            .sort(ticker_str, SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            ticker_str => &["APPL", "GOOGL"],
+            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::MarketPrice.into() => &[103.95, 33.87],
+            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::Dividends.into() => &[9.84, 1.45],
+            Columns::CaptalGainRate.into() => &[6.039, -1.9682],
+            Columns::CaptalGain.into() => &[78.144, -13.6],
+            Columns::Profit.into() => &[87.984,-12.15],
+            Columns::ProfitRate.into() => &[4.3551, -0.7882],
+        )
+        .unwrap()
+        .sort(&[ticker_str], false, false)
+        .unwrap();
+
+        std::env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.
+                                                        // dbg!(&result);
         assert_eq!(expected, result);
     }
 }
