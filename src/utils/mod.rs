@@ -168,7 +168,7 @@ pub mod polars {
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
 
-        pub fn buy_and_self() -> Expr {
+        pub fn buy_and_sell() -> Expr {
             col(schema::Columns::Action.into())
                 .eq(lit::<&str>(schema::Action::Buy.into()))
                 .or(col(schema::Columns::Action.into())
