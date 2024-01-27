@@ -19,12 +19,7 @@ impl AverageCost {
     pub fn with_cumulative(mut self) -> Self {
         self.data = self
             .data
-            .filter(
-                col(schema::Columns::Action.into())
-                    .eq(lit::<&str>(schema::Action::Buy.into()))
-                    .or(col(schema::Columns::Action.into())
-                        .eq(lit::<&str>(schema::Action::Sell.into()))),
-            )
+            .filter(utils::polars::filter::buy_and_self())
             .with_column(utils::polars::compute::negative_qty_on_sell())
             .with_column(
                 // Use struct type to operate over two columns.

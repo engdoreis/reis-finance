@@ -127,6 +127,7 @@ pub mod polars {
     pub mod compute {
         use crate::schema;
         use polars::prelude::*;
+        use polars_lazy::dsl::Expr;
         pub fn captal_gain_rate() -> Expr {
             ((col(schema::Columns::MarketPrice.into()) / col(schema::Columns::AveragePrice.into())
                 - lit(1))
@@ -159,6 +160,19 @@ pub mod polars {
             )
             .then(col(schema::Columns::Qty.into()) * lit(-1))
             .otherwise(col(schema::Columns::Qty.into()))
+        }
+    }
+
+    pub mod filter {
+        use crate::schema;
+        use polars::prelude::*;
+        use polars_lazy::dsl::Expr;
+
+        pub fn buy_and_self() -> Expr {
+            col(schema::Columns::Action.into())
+                .eq(lit::<&str>(schema::Action::Buy.into()))
+                .or(col(schema::Columns::Action.into())
+                    .eq(lit::<&str>(schema::Action::Sell.into())))
         }
     }
 }

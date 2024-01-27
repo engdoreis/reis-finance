@@ -18,12 +18,7 @@ impl Portfolio {
             .clone()
             .lazy()
             // Filter buy and sell actions.
-            .filter(
-                col(schema::Columns::Action.into())
-                    .eq(lit::<&str>(schema::Action::Buy.into()))
-                    .or(col(schema::Columns::Action.into())
-                        .eq(lit::<&str>(schema::Action::Sell.into()))),
-            )
+            .filter(utils::polars::filter::buy_and_self())
             .with_column(utils::polars::compute::negative_qty_on_sell())
             // Compute the Amount, and AccruedQty by ticker.
             .group_by([col(schema::Columns::Ticker.into())])
