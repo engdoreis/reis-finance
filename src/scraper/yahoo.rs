@@ -152,11 +152,12 @@ mod unittest {
     use super::*;
     use crate::utils;
     use std::fs::File;
+    use std::path::Path;
 
     #[test]
     fn get_quotes_with_time_range_success() {
-        let reference_output = "resources/tests/apple-quotes-6m.csv";
-        let output = "/tmp/get_quotes_with_time_range_success.csv";
+        let reference_output = Path::new("resources/tests/apple-quotes-6m.csv");
+        let output = Path::new("target/get_quotes_with_time_range_success.csv");
 
         let mut yh = Yahoo::new();
         let data = yh
@@ -178,14 +179,16 @@ mod unittest {
 
         assert!(
             utils::test::fs::compare_files(reference_output, output).unwrap(),
-            "Run the command to check the diff: meld {reference_output} {output}"
+            "Run the command to check the diff:  meld {} {}",
+            reference_output.as_os_str().to_str().unwrap(),
+            output.as_os_str().to_str().unwrap()
         );
     }
 
     #[test]
     fn get_splits_with_time_range_success() {
-        let reference_output = "resources/tests/google-splits.csv";
-        let output = "/tmp/get_splits_with_time_range_success.csv";
+        let reference_output = Path::new("resources/tests/google-splits.csv");
+        let output = Path::new("target/get_splits_with_time_range_success.csv");
 
         let mut yh = Yahoo::new();
         let data = yh
@@ -207,14 +210,16 @@ mod unittest {
 
         assert!(
             utils::test::fs::compare_files(reference_output, output).unwrap(),
-            "Run the command to check the diff: meld {reference_output} {output}"
+            "Run the command to check the diff:  meld {} {}",
+            reference_output.as_os_str().to_str().unwrap(),
+            output.as_os_str().to_str().unwrap()
         );
     }
 
     #[test]
     fn get_dividends_with_time_range_success() {
-        let reference_output = "resources/tests/apple-dividends.csv";
-        let output = "/tmp/get_dividends_with_time_range_success.csv";
+        let reference_output = Path::new("resources/tests/apple-dividends.csv");
+        let output = Path::new("target/get_dividends_with_time_range_success.csv");
 
         let mut yh = Yahoo::new();
         let data = yh
@@ -236,7 +241,9 @@ mod unittest {
 
         assert!(
             utils::test::fs::compare_files(reference_output, output).unwrap(),
-            "Run the command to check the diff: meld {reference_output} {output}"
+            "Run the command to check the diff: meld {} {}",
+            reference_output.as_os_str().to_str().unwrap(),
+            output.as_os_str().to_str().unwrap()
         );
     }
     #[test]

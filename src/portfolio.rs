@@ -166,11 +166,12 @@ impl Portfolio {
     }
 }
 
+#[cfg(test)]
 mod unittest {
     use super::*;
     use crate::schema::Columns;
     use crate::scraper::{self, Dividends, Element, ElementSet, Quotes, Splits};
-    use crate::{dividends, utils};
+    use crate::utils;
 
     struct Mock {
         ticker: String,
@@ -192,11 +193,11 @@ mod unittest {
             self
         }
 
-        fn with_country(&mut self, country: schema::Country) -> &mut Self {
+        fn with_country(&mut self, _country: schema::Country) -> &mut Self {
             self
         }
 
-        fn load(&mut self, search_interval: scraper::SearchBy) -> Result<&Self> {
+        fn load(&mut self, _search_interval: scraper::SearchBy) -> Result<&Self> {
             Ok(self)
         }
 

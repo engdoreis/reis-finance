@@ -4,7 +4,7 @@ use crate::utils;
 
 use anyhow::Result;
 use polars::prelude::*;
-
+use std::path::Path;
 pub struct Trading212 {}
 
 impl Default for Trading212 {
@@ -33,7 +33,7 @@ impl Trading212 {
 }
 
 impl IBroker for Trading212 {
-    fn load_from_csv(&self, csv_file: &str) -> Result<DataFrame> {
+    fn load_from_csv(&self, csv_file: &Path) -> Result<DataFrame> {
         let df = LazyCsvReader::new(csv_file)
             .has_header(true)
             .finish()?
@@ -113,12 +113,13 @@ mod unittest {
     use super::*;
     use crate::utils;
     use std::fs::File;
+    use std::path::Path;
 
     #[test]
     fn load_csv_success() {
-        let input_csv = "resources/tests/input/trading212/2022.csv";
-        let reference_output = "resources/tests/trading212_success.csv";
-        let output = "/tmp/trading212_result.csv";
+        let input_csv = Path::new("resources/tests/input/trading212/2022.csv");
+        let reference_output = Path::new("resources/tests/trading212_success.csv");
+        let output = Path::new("target/trading212_result.csv");
 
         let mut df = Trading212::new().load_from_csv(input_csv).unwrap();
 
@@ -131,15 +132,17 @@ mod unittest {
 
         assert!(
             utils::test::fs::compare_files(reference_output, output).unwrap(),
-            "Run the command to check the diff: meld {reference_output} {output}"
+            "Run the command to check the diff: meld {} {}",
+            reference_output.as_os_str().to_str().unwrap(),
+            output.as_os_str().to_str().unwrap()
         );
     }
 
     #[test]
     fn load_dir_success() {
-        let input_dir = "resources/tests/input/trading212";
-        let reference_output = "resources/tests/trading212_dir_success.csv";
-        let output = "/tmp/trading212_dir_result.csv";
+        let input_dir = Path::new("resources/tests/input/trading212");
+        let reference_output = Path::new("resources/tests/trading212_dir_success.csv");
+        let output = Path::new("target/trading212_dir_result.csv");
 
         let mut df = Trading212::new().load_from_dir(input_dir).unwrap();
 
@@ -152,7 +155,9 @@ mod unittest {
 
         assert!(
             utils::test::fs::compare_files(reference_output, output).unwrap(),
-            "Run the command to check the diff: meld {reference_output} {output}"
+            "Run the command to check the diff: meld {} {}",
+            reference_output.as_os_str().to_str().unwrap(),
+            output.as_os_str().to_str().unwrap()
         );
     }
 }

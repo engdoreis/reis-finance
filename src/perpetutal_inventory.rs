@@ -104,6 +104,7 @@ impl AverageCost {
     }
 }
 
+#[cfg(test)]
 mod unittest {
     use super::*;
     use crate::schema::Columns;
