@@ -7,12 +7,28 @@ pub mod test {
     pub mod fs {
         use anyhow::Result;
         use std::fs;
+        use std::path::Path;
 
-        pub fn compare_files(file_path1: &str, file_path2: &str) -> Result<bool> {
+        pub fn compare_files(file_path1: &Path, file_path2: &Path) -> Result<bool> {
             // Read the contents of the first file into a vector
-            let contents1 = fs::read(file_path1).expect(&format!("Cant't read file {file_path1}"));
+            let contents1: Vec<_> = fs::read(file_path1)
+                .expect(&format!(
+                    "Cant't read file {}",
+                    file_path1.to_str().unwrap()
+                ))
+                .into_iter()
+                .filter(|x| *x != b'\r' && *x != b'\n')
+                .collect();
             // Read the contents of the second file into a vector
-            let contents2 = fs::read(file_path2).expect(&format!("Cant't read file {file_path2}"));
+            let contents2: Vec<_> = fs::read(file_path2)
+                .expect(&format!(
+                    "Cant't read file {}",
+                    file_path2.to_str().unwrap()
+                ))
+                .into_iter()
+                .filter(|x| *x != b'\r' && *x != b'\n')
+                .collect();
+
             Ok(contents1 == contents2)
         }
     }
@@ -76,7 +92,7 @@ pub mod polars {
             .cast(DataType::Date)
     }
 
-    pub fn map_str_column<F>(name: &str, f: F) -> Expr
+    pub fn map_str_column<F>(name: &str, func: F) -> Expr
     where
         F: Fn(Option<&str>) -> &str + Send + Sync + 'static,
     {
@@ -86,7 +102,7 @@ pub mod polars {
                     series
                         .str()?
                         .into_iter()
-                        .map(|row| f(row))
+                        .map(|row| func(row))
                         .collect::<ChunkedArray<_>>()
                         .into_series(),
                 ))

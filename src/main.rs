@@ -4,20 +4,18 @@ use anyhow::Result;
 
 use reis_finance_lib::broker::{IBroker, Trading212};
 use reis_finance_lib::dividends::Dividends;
-use reis_finance_lib::perpetutal_inventory::AverageCost;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::scraper::Yahoo;
 use reis_finance_lib::uninvested;
-use std::{env, error::Error};
 
 fn main() -> Result<()> {
-    env::set_var("POLARS_FMT_TABLE_ROUNDED_CORNERS", "1"); // apply rounded corners to UTF8-styled tables.
-    env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.
-    env::set_var("POLARS_FMT_MAX_ROWS", "10"); // maximum number of rows shown when formatting DataFrames.
-    env::set_var("POLARS_FMT_STR_LEN", "50"); // maximum number of characters printed per string value.
+    std::env::set_var("POLARS_FMT_TABLE_ROUNDED_CORNERS", "1"); // apply rounded corners to UTF8-styled tables.
+    std::env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.
+    std::env::set_var("POLARS_FMT_MAX_ROWS", "10"); // maximum number of rows shown when formatting DataFrames.
+    std::env::set_var("POLARS_FMT_STR_LEN", "50"); // maximum number of characters printed per string value.
 
     let broker = Trading212::new();
-    let orders = broker.load_from_dir("/tmp/trading212")?;
+    let orders = broker.load_from_dir(std::path::Path::new("/tmp/trading212"))?;
     // println!("{:?}", orders);
     let mut yahoo_scraper = Yahoo::new();
     // let data = yahoo_scraper

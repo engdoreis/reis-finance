@@ -42,7 +42,6 @@ mod unittest {
     use super::*;
     use crate::schema::Action::*;
     use crate::schema::Columns::*;
-    use polars::prelude::*;
 
     #[test]
     fn uninvested_cash_success() {

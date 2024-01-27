@@ -59,6 +59,7 @@ impl Dividends {
     }
 }
 
+#[cfg(test)]
 mod unittest {
     use super::*;
     use crate::schema::Columns;
