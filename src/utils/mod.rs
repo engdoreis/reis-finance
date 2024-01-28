@@ -48,11 +48,18 @@ pub mod test {
             Dividend.into(),
             Dividend.into(),
         ];
+        let dates: Vec<String> = actions
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("2024-01-{}", 5 + i))
+            .collect();
+
         let country: &[&str] = &[Usa.into(); 12];
         let mut tickers = vec!["GOOGL"; 6];
         tickers.extend(vec!["APPL", "GOOGL", "APPL", "APPL", "GOOGL", "APPL"]);
 
         let orders = df! (
+            Date.into() => dates,
             Action.into() => actions,
             Qty.into() => [8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5, 1.0, 1.0],
             Ticker.into() => tickers,
@@ -64,6 +71,7 @@ pub mod test {
         orders
             .lazy()
             .with_column((col(Qty.into()) * col(Price.into())).alias(Amount.into()))
+            .with_column(super::polars::str_to_date(Date.into()).alias(Date.into()))
             .collect()
             .unwrap()
     }
@@ -161,6 +169,12 @@ pub mod polars {
             .then(col(schema::Columns::Qty.into()) * lit(-1))
             .otherwise(col(schema::Columns::Qty.into()))
         }
+
+        pub fn sell_profit() -> Expr {
+            ((col(schema::Columns::Price.into()) - col(schema::Columns::AveragePrice.into()))
+                * col(schema::Columns::Qty.into()))
+            .alias(schema::Columns::Profit.into())
+        }
     }
 
     pub mod filter {
@@ -173,6 +187,14 @@ pub mod polars {
                 .eq(lit::<&str>(schema::Action::Buy.into()))
                 .or(col(schema::Columns::Action.into())
                     .eq(lit::<&str>(schema::Action::Sell.into())))
+        }
+
+        pub fn buy() -> Expr {
+            col(schema::Columns::Action.into()).eq(lit::<&str>(schema::Action::Buy.into()))
+        }
+
+        pub fn sell() -> Expr {
+            col(schema::Columns::Action.into()).eq(lit::<&str>(schema::Action::Sell.into()))
         }
     }
 }
