@@ -71,7 +71,6 @@ mod unittest {
     #[test]
     fn realized_profit_success() {
         let orders = utils::test::generate_mocking_orders();
-        let sort_column: &str = Columns::Date.into();
 
         let result = Profit::new(&orders)
             .unwrap()

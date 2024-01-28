@@ -108,25 +108,27 @@ mod unittest {
     #[test]
     fn average_cost_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let result = AverageCost::new(&orders)
             .with_cumulative()
             .collect_latest()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::AveragePrice.into() => &[98.03, 34.55],
             Columns::AccruedQty.into() => &[13.20, 20.0],
         )
         .unwrap()
-        .sort(&[ticker_str], false, false)
+        .sort(&[Columns::Ticker.as_str()], false, false)
         .unwrap();
 
         // dbg!(&result);

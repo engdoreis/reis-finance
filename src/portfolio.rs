@@ -215,6 +215,7 @@ mod unittest {
                 }],
             })
         }
+
         fn dividends(&self) -> Result<Dividends> {
             Ok(ElementSet {
                 columns: (Columns::Date, Columns::Price),
@@ -229,7 +230,6 @@ mod unittest {
     #[test]
     fn portfolio_with_quotes_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let mut scraper = Mock::new();
         let result = Portfolio::new(&orders)
@@ -238,19 +238,20 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
             Columns::AccruedQty.into() => &[13.20, 20.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
         )
-        .unwrap()
-        .sort(&[ticker_str], false, false)
         .unwrap();
 
         // dbg!(&result);
@@ -260,7 +261,6 @@ mod unittest {
     #[test]
     fn portfolio_with_average_price_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let mut scraper = Mock::new();
         let result = Portfolio::new(&orders)
@@ -271,20 +271,21 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
             Columns::AccruedQty.into() => &[13.20, 20.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 34.55],
         )
-        .unwrap()
-        .sort(&[ticker_str], false, false)
         .unwrap();
 
         // dbg!(&result);
@@ -294,7 +295,6 @@ mod unittest {
     #[test]
     fn portfolio_with_dividends_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let dividends = df!(
             Columns::Dividends.into() => &[1.45, 9.84],
@@ -312,21 +312,22 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
             Columns::AccruedQty.into() => &[13.20, 20.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 34.55],
             Columns::Dividends.into() => &[9.84, 1.45],
         )
-        .unwrap()
-        .sort(&[ticker_str], false, false)
         .unwrap();
 
         // dbg!(&result);
@@ -336,7 +337,6 @@ mod unittest {
     #[test]
     fn portfolio_with_capital_gain_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let mut scraper = Mock::new();
         let result = Portfolio::new(&orders)
@@ -348,13 +348,16 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
             Columns::AccruedQty.into() => &[13.20, 20.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
@@ -362,8 +365,6 @@ mod unittest {
             Columns::CaptalGainRate.into() => &[6.039, -1.9682],
             Columns::CaptalGain.into() => &[78.144, -13.6],
         )
-        .unwrap()
-        .sort(&[ticker_str], false, false)
         .unwrap();
 
         // dbg!(&result);
@@ -373,7 +374,6 @@ mod unittest {
     #[test]
     fn portfolio_with_profit_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let dividends = df!(
             Columns::Dividends.into() => &[1.45, 9.84],
@@ -393,13 +393,16 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
             Columns::AccruedQty.into() => &[13.20, 20.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
@@ -410,8 +413,6 @@ mod unittest {
             Columns::Profit.into() => &[87.984,-12.15],
             Columns::ProfitRate.into() => &[4.3551, -0.7882],
         )
-        .unwrap()
-        .sort(&[ticker_str], false, false)
         .unwrap();
 
         std::env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.

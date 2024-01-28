@@ -26,6 +26,12 @@ pub enum Columns {
     ProfitRate,
 }
 
+impl Columns {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+}
+
 #[derive(Debug, strum::IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Action {
@@ -37,6 +43,12 @@ pub enum Action {
     Tax,
     Interest,
     Withdraw,
+}
+
+impl Action {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
 }
 
 #[derive(Debug, strum_macros::Display, strum::IntoStaticStr)]
