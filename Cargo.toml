@@ -17,9 +17,10 @@ path = "src/main.rs"
 anyhow = "1.0.78"
 chrono = "0.4.31"
 derive_more = "0.99.17"
+either = "1.9.0"
 glob = "0.3.1"
 lazy_static = "1.4.0"
-polars = {version = "0.36.2", features = ["lazy", "strings", "lazy_regex", "cum_agg", "dtype-struct", "round_series"]}
+polars = {version = "0.36.2", features = ["lazy", "strings", "lazy_regex", "cum_agg", "dtype-struct", "round_series", "horizontal_concat"]}
 polars-lazy = {version = "0.36.2", features = ["pivot"]}
 strum = {version = "0.25.0", features = ["derive"]}
 strum_macros = "0.25.3"
