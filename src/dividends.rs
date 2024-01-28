@@ -10,8 +10,7 @@ impl Dividends {
     pub fn new(orders: &DataFrame) -> Dividends {
         Dividends {
             data: orders.clone().lazy().filter(
-                col(schema::Columns::Action.into())
-                    .eq(lit::<&str>(schema::Action::Dividend.into())),
+                col(schema::Columns::Action.into()).eq(lit(schema::Action::Dividend.as_str())),
             ),
         }
     }
@@ -29,10 +28,9 @@ impl Dividends {
             )
             .collect()?;
 
-        let amount: &str = schema::Columns::Amount.into();
         Ok(polars_lazy::frame::pivot::pivot(
             &result,
-            [amount],
+            [schema::Columns::Amount.as_str()],
             ["Year"],
             ["Month"],
             true,
@@ -68,23 +66,25 @@ mod unittest {
     #[test]
     fn dividends_by_ticker_success() {
         let orders = utils::test::generate_mocking_orders();
-        let ticker_str: &str = Columns::Ticker.into();
 
         let result = Dividends::new(&orders)
             .by_ticker()
             .unwrap()
             .lazy()
-            .select([col(ticker_str), dtype_col(&DataType::Float64).round(4)])
-            .sort(ticker_str, SortOptions::default())
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            ticker_str => &["APPL", "GOOGL"],
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Dividends.into() => &[2.75, 3.26],
         )
         .unwrap()
-        .sort(&[ticker_str], false, false)
+        .sort(&[Columns::Ticker.as_str()], false, false)
         .unwrap();
 
         // dbg!(&result);

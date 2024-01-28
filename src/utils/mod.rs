@@ -35,24 +35,22 @@ pub mod test {
 
     pub fn generate_mocking_orders() -> DataFrame {
         let actions: &[&str] = &[
-            Buy.into(),
-            Dividend.into(),
-            Buy.into(),
-            Buy.into(),
-            Sell.into(),
-            Sell.into(),
-            Buy.into(),
-            Buy.into(),
-            Sell.into(),
-            Buy.into(),
-            Dividend.into(),
-            Dividend.into(),
-        ];
+            Buy, Dividend, Buy, Buy, Sell, Sell, Buy, Buy, Sell, Buy, Dividend, Dividend,
+        ]
+        .map(|x| x.into());
+
+        let dates: Vec<String> = actions
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("2024-01-{}", 5 + i))
+            .collect();
+
         let country: &[&str] = &[Usa.into(); 12];
         let mut tickers = vec!["GOOGL"; 6];
         tickers.extend(vec!["APPL", "GOOGL", "APPL", "APPL", "GOOGL", "APPL"]);
 
         let orders = df! (
+            Date.into() => dates,
             Action.into() => actions,
             Qty.into() => [8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5, 1.0, 1.0],
             Ticker.into() => tickers,
@@ -64,6 +62,7 @@ pub mod test {
         orders
             .lazy()
             .with_column((col(Qty.into()) * col(Price.into())).alias(Amount.into()))
+            .with_column(super::polars::str_to_date(Date.into()).alias(Date.into()))
             .collect()
             .unwrap()
     }
@@ -125,40 +124,62 @@ pub mod polars {
     }
 
     pub mod compute {
-        use crate::schema;
+        use crate::schema::{Action, Columns::*};
         use polars::prelude::*;
+        use polars_lazy::dsl::Expr;
+        
         pub fn captal_gain_rate() -> Expr {
-            ((col(schema::Columns::MarketPrice.into()) / col(schema::Columns::AveragePrice.into())
-                - lit(1))
-                * lit(100))
-            .alias(schema::Columns::CaptalGainRate.into())
+            ((col(MarketPrice.into()) / col(AveragePrice.into()) - lit(1)) * lit(100))
+                .alias(CaptalGainRate.into())
         }
 
         pub fn captal_gain() -> Expr {
-            ((col(schema::Columns::MarketPrice.into()) - col(schema::Columns::AveragePrice.into()))
-                * col(schema::Columns::AccruedQty.into()))
-            .alias(schema::Columns::CaptalGain.into())
+            ((col(MarketPrice.into()) - col(AveragePrice.into())) * col(AccruedQty.into()))
+                .alias(CaptalGain.into())
         }
 
         pub fn profit() -> Expr {
-            (col(schema::Columns::CaptalGain.into()) + col(schema::Columns::Dividends.into()))
-                .alias(schema::Columns::Profit.into())
+            (col(CaptalGain.into()) + col(Dividends.into())).alias(Profit.into())
         }
 
         pub fn profit_rate() -> Expr {
-            ((col(schema::Columns::Profit.into()) / col(schema::Columns::Amount.into())) * lit(100))
+            ((col(Profit.into()) / col(Amount.into())) * lit(100))
                 .fill_nan(0)
-                .alias(schema::Columns::ProfitRate.into())
+                .alias(ProfitRate.into())
         }
 
         pub fn negative_qty_on_sell() -> Expr {
             when(
-                col(schema::Columns::Action.into())
+                col(Action.into())
                     .str()
-                    .contains_literal(lit::<&str>(schema::Action::Sell.into())),
+                    .contains_literal(lit(Action::Sell.as_str())),
             )
-            .then(col(schema::Columns::Qty.into()) * lit(-1))
-            .otherwise(col(schema::Columns::Qty.into()))
+            .then(col(Qty.into()) * lit(-1))
+            .otherwise(col(Qty.into()))
+        }
+
+        pub fn sell_profit() -> Expr {
+            ((col(Price.into()) - col(AveragePrice.into())) * col(Qty.into())).alias(Profit.into())
+        }
+    }
+
+    pub mod filter {
+        use crate::schema::{Action, Columns::*};
+        use polars::prelude::*;
+        use polars_lazy::dsl::Expr;
+
+        pub fn buy_and_sell() -> Expr {
+            col(Action.into())
+                .eq(lit(Action::Buy.as_str()))
+                .or(col(Action.into()).eq(lit(Action::Sell.as_str())))
+        }
+
+        pub fn buy() -> Expr {
+            col(Action.into()).eq(lit(Action::Buy.as_str()))
+        }
+
+        pub fn sell() -> Expr {
+            col(Action.into()).eq(lit(Action::Sell.as_str()))
         }
     }
 }
