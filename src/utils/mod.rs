@@ -127,19 +127,19 @@ pub mod polars {
         use crate::schema::{Action, Columns::*};
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
-        
+
         pub fn captal_gain_rate() -> Expr {
             ((col(MarketPrice.into()) / col(AveragePrice.into()) - lit(1)) * lit(100))
-                .alias(CaptalGainRate.into())
+                .alias(CapitalGainRate.into())
         }
 
         pub fn captal_gain() -> Expr {
             ((col(MarketPrice.into()) - col(AveragePrice.into())) * col(AccruedQty.into()))
-                .alias(CaptalGain.into())
+                .alias(CapitalGain.into())
         }
 
         pub fn profit() -> Expr {
-            (col(CaptalGain.into()) + col(Dividends.into())).alias(Profit.into())
+            (col(CapitalGain.into()) + col(Dividends.into())).alias(Profit.into())
         }
 
         pub fn profit_rate() -> Expr {
