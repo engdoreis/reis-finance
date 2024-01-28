@@ -1,4 +1,4 @@
-use crate::perpetutal_inventory::AverageCost;
+use crate::perpetual_inventory::AverageCost;
 use crate::schema;
 use crate::utils;
 use anyhow::Result;

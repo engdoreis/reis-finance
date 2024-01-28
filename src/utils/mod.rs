@@ -127,19 +127,19 @@ pub mod polars {
         use crate::schema::{Action, Columns::*};
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
-        
+
         pub fn captal_gain_rate() -> Expr {
             ((col(MarketPrice.into()) / col(AveragePrice.into()) - lit(1)) * lit(100))
-                .alias(CaptalGainRate.into())
+                .alias(PaperProfitRate.into())
         }
 
         pub fn captal_gain() -> Expr {
             ((col(MarketPrice.into()) - col(AveragePrice.into())) * col(AccruedQty.into()))
-                .alias(CaptalGain.into())
+                .alias(PaperProfit.into())
         }
 
         pub fn profit() -> Expr {
-            (col(CaptalGain.into()) + col(Dividends.into())).alias(Profit.into())
+            (col(PaperProfit.into()) + col(Dividends.into())).alias(Profit.into())
         }
 
         pub fn profit_rate() -> Expr {
@@ -158,28 +158,44 @@ pub mod polars {
             .otherwise(col(Qty.into()))
         }
 
+        pub fn negative_amount_on_withdraw() -> Expr {
+            when(
+                col(Action.into())
+                    .str()
+                    .contains_literal(lit(Action::Withdraw.as_str())),
+            )
+            .then(col(Amount.into()) * lit(-1))
+            .otherwise(col(Amount.into()))
+        }
+
         pub fn sell_profit() -> Expr {
             ((col(Price.into()) - col(AveragePrice.into())) * col(Qty.into())).alias(Profit.into())
         }
     }
 
     pub mod filter {
-        use crate::schema::{Action, Columns::*};
+        use crate::schema::{Action::*, Columns::*};
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
 
         pub fn buy_and_sell() -> Expr {
             col(Action.into())
-                .eq(lit(Action::Buy.as_str()))
-                .or(col(Action.into()).eq(lit(Action::Sell.as_str())))
+                .eq(lit(Buy.as_str()))
+                .or(col(Action.into()).eq(lit(Sell.as_str())))
         }
 
         pub fn buy() -> Expr {
-            col(Action.into()).eq(lit(Action::Buy.as_str()))
+            col(Action.into()).eq(lit(Buy.as_str()))
         }
 
         pub fn sell() -> Expr {
-            col(Action.into()).eq(lit(Action::Sell.as_str()))
+            col(Action.into()).eq(lit(Sell.as_str()))
+        }
+
+        pub fn deposit_and_withdraw() -> Expr {
+            col(Action.into())
+                .eq(lit(Deposit.as_str()))
+                .or(col(Action.into()).eq(lit(Withdraw.as_str())))
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::perpetutal_inventory::AverageCost;
+use crate::perpetual_inventory::AverageCost;
 use crate::schema;
 use crate::scraper::{self, IScraper};
 use crate::utils;
@@ -362,8 +362,8 @@ mod unittest {
             Columns::AccruedQty.into() => &[13.20, 20.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 34.55],
-            Columns::CaptalGainRate.into() => &[6.039, -1.9682],
-            Columns::CaptalGain.into() => &[78.144, -13.6],
+            Columns::PaperProfitRate.into() => &[6.039, -1.9682],
+            Columns::PaperProfit.into() => &[78.144, -13.6],
         )
         .unwrap();
 
@@ -408,8 +408,8 @@ mod unittest {
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 34.55],
             Columns::Dividends.into() => &[9.84, 1.45],
-            Columns::CaptalGainRate.into() => &[6.039, -1.9682],
-            Columns::CaptalGain.into() => &[78.144, -13.6],
+            Columns::PaperProfitRate.into() => &[6.039, -1.9682],
+            Columns::PaperProfit.into() => &[78.144, -13.6],
             Columns::Profit.into() => &[87.984,-12.15],
             Columns::ProfitRate.into() => &[4.3551, -0.7882],
         )

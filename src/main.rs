@@ -5,9 +5,10 @@ use anyhow::Result;
 use reis_finance_lib::broker::{IBroker, Trading212};
 use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::portfolio::Portfolio;
-use reis_finance_lib::realized;
 use reis_finance_lib::scraper::Yahoo;
+use reis_finance_lib::summary::Summary;
 use reis_finance_lib::uninvested;
+use reis_finance_lib::{liquidated, summary};
 
 fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_TABLE_ROUNDED_CORNERS", "1"); // apply rounded corners to UTF8-styled tables.
@@ -32,15 +33,23 @@ fn main() -> Result<()> {
         .with_uninvested_cash(cash.clone())
         .with_profit()
         .collect()?;
+
+    let profit = liquidated::Profit::new(&orders)?.collect()?;
+
+    let summary = Summary::new(&portfolio)?
+        .with_capital_invested(&orders)?
+        .with_liquidated_profit(&profit)?
+        .collect()?;
+    println!("{}", &summary);
+
     println!("{}", &portfolio);
 
-    let profit = realized::Profit::new(&orders)?.collect()?;
     println!("{:?}", &profit);
 
-    println!("{:?}", &dividends);
+    // println!("{:?}", &dividends);
     println!("{:?}", &cash);
 
     let pivot = Dividends::new(&orders).pivot()?;
-    println!("{:?}", &pivot);
+    // println!("{:?}", &pivot);
     Ok(())
 }
