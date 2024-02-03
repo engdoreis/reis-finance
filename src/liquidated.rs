@@ -15,7 +15,7 @@ impl Profit {
         let data = orders
             .clone()
             .lazy()
-            .filter(utils::polars::filter::buy_and_sell())
+            .filter(utils::polars::filter::buy_or_sell())
             .select([
                 col(schema::Columns::Date.into()),
                 col(schema::Columns::Ticker.into()),

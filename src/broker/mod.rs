@@ -1,5 +1,7 @@
+pub mod schwab;
 pub mod trading212;
 
+pub use schwab::Schwab;
 pub use trading212::Trading212;
 
 use anyhow::Result;

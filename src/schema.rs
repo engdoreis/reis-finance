@@ -38,7 +38,7 @@ impl Columns {
     }
 }
 
-#[derive(Debug, strum::IntoStaticStr)]
+#[derive(Debug, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Action {
     Sell,
@@ -49,6 +49,7 @@ pub enum Action {
     Tax,
     Interest,
     Withdraw,
+    Ignore,
 }
 
 impl Action {
@@ -78,6 +79,10 @@ pub enum Country {
 }
 
 impl Country {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+
     pub fn from_isin(isin: impl Into<String>) -> Self {
         match isin.into().split_at(2) {
             ("US", _) => Country::Usa,

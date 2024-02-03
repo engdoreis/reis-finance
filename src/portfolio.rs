@@ -18,7 +18,7 @@ impl Portfolio {
             .clone()
             .lazy()
             // Filter buy and sell actions.
-            .filter(utils::polars::filter::buy_and_sell())
+            .filter(utils::polars::filter::buy_or_sell())
             .with_column(utils::polars::compute::negative_qty_on_sell())
             // Compute the Amount, and AccruedQty by ticker.
             .group_by([col(schema::Columns::Ticker.into())])
@@ -31,7 +31,9 @@ impl Portfolio {
                     .alias(schema::Columns::AccruedQty.into()),
                 col(schema::Columns::Country.into()).first(),
             ])
-            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)));
+            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
+            // .select([col("*").exclude([schema::Columns::AccruedQty.as_str()])])
+            ;
 
         Portfolio {
             data: result,
@@ -77,7 +79,11 @@ impl Portfolio {
                 [col(schema::Columns::Ticker.into())],
                 JoinArgs::new(JoinType::Left),
             )
-            .fill_null(0f64);
+            .fill_null(0f64)
+            .with_column(
+                col(&(schema::Columns::AccruedQty.as_str().to_string() + "_right"))
+                    .alias(schema::Columns::AccruedQty.into()),
+            );
         Ok(self)
     }
 
@@ -117,8 +123,14 @@ impl Portfolio {
             .clone()
             .join(
                 cash.lazy(),
-                [col(schema::Columns::Ticker.into())],
-                [col(schema::Columns::Ticker.into())],
+                [
+                    col(schema::Columns::Ticker.into()),
+                    col(schema::Columns::Amount.into()),
+                ],
+                [
+                    col(schema::Columns::Ticker.into()),
+                    col(schema::Columns::Amount.into()),
+                ],
                 JoinArgs::new(JoinType::Outer { coalesce: true }),
             )
             .fill_null(0f64);
@@ -146,14 +158,19 @@ impl Portfolio {
                     panic!("Can't get country from: {country}");
                 };
 
-                let price = scraper
+                if let Ok(scraper) = scraper
                     .with_ticker(ticker)
                     .with_country(schema::Country::from_str(country).unwrap())
                     .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
-                    .unwrap_or_else(|_| panic!("Can't read ticker {ticker}"))
-                    .quotes()
-                    .unwrap();
-                (ticker.to_owned(), price.first().unwrap().number)
+                {
+                    (
+                        ticker.to_owned(),
+                        scraper.quotes().unwrap().first().unwrap().number,
+                    )
+                } else {
+                    println!("Can't read ticker {ticker}");
+                    (ticker.to_owned(), 0.0f64)
+                }
             })
             .collect();
 
@@ -282,9 +299,9 @@ mod unittest {
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
-            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::AveragePrice.into() => &[98.03, 69.10],
         )
         .unwrap();
 
@@ -323,9 +340,9 @@ mod unittest {
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
-            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::AveragePrice.into() => &[98.03, 69.10],
             Columns::Dividends.into() => &[9.84, 1.45],
         )
         .unwrap();
@@ -359,11 +376,11 @@ mod unittest {
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
-            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 34.55],
-            Columns::PaperProfitRate.into() => &[6.039, -1.9682],
-            Columns::PaperProfit.into() => &[78.144, -13.6],
+            Columns::AveragePrice.into() => &[98.03, 69.10],
+            Columns::PaperProfitRate.into() => &[6.039, -50.9841],
+            Columns::PaperProfit.into() => &[78.144, -352.3],
         )
         .unwrap();
 
@@ -404,14 +421,14 @@ mod unittest {
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
             Columns::Amount.into() => &[2020.236, 1541.4],
-            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 34.55],
+            Columns::AveragePrice.into() => &[98.03, 69.10],
             Columns::Dividends.into() => &[9.84, 1.45],
-            Columns::PaperProfitRate.into() => &[6.039, -1.9682],
-            Columns::PaperProfit.into() => &[78.144, -13.6],
-            Columns::Profit.into() => &[87.984,-12.15],
-            Columns::ProfitRate.into() => &[4.3551, -0.7882],
+            Columns::PaperProfitRate.into() => &[6.039, -50.9841],
+            Columns::PaperProfit.into() => &[78.144, -352.3],
+            Columns::Profit.into() => &[87.984,-350.85],
+            Columns::ProfitRate.into() => &[4.3551, -22.7618],
         )
         .unwrap();
 

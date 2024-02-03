@@ -35,7 +35,7 @@ pub mod test {
 
     pub fn generate_mocking_orders() -> DataFrame {
         let actions: &[&str] = &[
-            Buy, Dividend, Buy, Buy, Sell, Sell, Buy, Buy, Sell, Buy, Dividend, Dividend,
+            Buy, Dividend, Buy, Buy, Sell, Sell, Buy, Buy, Sell, Buy, Dividend, Dividend, Split,
         ]
         .map(|x| x.into());
 
@@ -45,17 +45,19 @@ pub mod test {
             .map(|(i, _)| format!("2024-01-{}", 5 + i))
             .collect();
 
-        let country: &[&str] = &[Usa.into(); 12];
+        let country: Vec<&str> = vec![Usa.into(); actions.len()];
         let mut tickers = vec!["GOOGL"; 6];
-        tickers.extend(vec!["APPL", "GOOGL", "APPL", "APPL", "GOOGL", "APPL"]);
+        tickers.extend(vec![
+            "APPL", "GOOGL", "APPL", "APPL", "GOOGL", "APPL", "GOOGL",
+        ]);
 
         let orders = df! (
             Date.into() => dates,
             Action.into() => actions,
-            Qty.into() => [8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5, 1.0, 1.0],
+            Qty.into() => [8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5, 1.0, 1.0, 0.5],
             Ticker.into() => tickers,
             Country.into() => country,
-            Price.into() => &[34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60, 1.92, 2.75],
+            Price.into() => &[34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60, 1.92, 2.75, 0.0],
         )
         .unwrap();
 
@@ -178,18 +180,24 @@ pub mod polars {
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
 
-        pub fn buy_and_sell() -> Expr {
-            col(Action.into())
-                .eq(lit(Buy.as_str()))
-                .or(col(Action.into()).eq(lit(Sell.as_str())))
-        }
-
         pub fn buy() -> Expr {
             col(Action.into()).eq(lit(Buy.as_str()))
         }
 
         pub fn sell() -> Expr {
             col(Action.into()).eq(lit(Sell.as_str()))
+        }
+
+        pub fn split() -> Expr {
+            col(Action.into()).eq(lit(Split.as_str()))
+        }
+
+        pub fn buy_or_sell() -> Expr {
+            buy().or(sell())
+        }
+
+        pub fn buy_or_sell_or_split() -> Expr {
+            buy().or(sell()).or(split())
         }
 
         pub fn deposit_and_withdraw() -> Expr {
