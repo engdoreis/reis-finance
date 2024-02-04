@@ -30,6 +30,7 @@ pub enum Columns {
     ProfitRate,
     LiquidatedProfit,
     NetProfit,
+    AllocationRate,
 }
 
 impl Columns {

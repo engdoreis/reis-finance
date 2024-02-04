@@ -94,10 +94,11 @@ impl Portfolio {
         Ok(self)
     }
 
-    pub fn with_capital_gain(mut self) -> Self {
+    pub fn paper_profit(mut self) -> Self {
         self.data = self.data.with_columns([
-            utils::polars::compute::captal_gain_rate(),
-            utils::polars::compute::captal_gain(),
+            utils::polars::compute::market_value(),
+            utils::polars::compute::paper_profit_rate(),
+            utils::polars::compute::paper_profit(),
         ]);
         self
     }
@@ -140,7 +141,14 @@ impl Portfolio {
                 ],
                 JoinArgs::new(JoinType::Outer { coalesce: true }),
             )
-            .fill_null(0f64);
+            .with_column(col(schema::Columns::AccruedQty.into()).fill_null(lit(1)))
+            .fill_null(col(schema::Columns::Amount.into()));
+
+        self
+    }
+
+    pub fn with_allocation(mut self) -> Self {
+        self.data = self.data.with_column(utils::polars::compute::allocation());
         self
     }
 
@@ -368,7 +376,7 @@ mod unittest {
             .unwrap()
             .with_average_price()
             .unwrap()
-            .with_capital_gain()
+            .paper_profit()
             .collect()
             .unwrap()
             .lazy()
@@ -386,6 +394,7 @@ mod unittest {
             Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
+            Columns::MarketValue.into() => &[1372.14, 338.7],
             Columns::PaperProfitRate.into() => &[6.039, -50.9841],
             Columns::PaperProfit.into() => &[78.144, -352.3],
         )
@@ -412,7 +421,7 @@ mod unittest {
             .with_average_price()
             .unwrap()
             .with_dividends(dividends)
-            .with_capital_gain()
+            .paper_profit()
             .with_profit()
             .collect()
             .unwrap()
@@ -432,6 +441,7 @@ mod unittest {
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
             Columns::Dividends.into() => &[9.84, 1.45],
+            Columns::MarketValue.into() => &[1372.14, 338.7],
             Columns::PaperProfitRate.into() => &[6.039, -50.9841],
             Columns::PaperProfit.into() => &[78.144, -352.3],
             Columns::Profit.into() => &[87.984,-350.85],

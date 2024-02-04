@@ -130,14 +130,18 @@ pub mod polars {
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
 
-        pub fn captal_gain_rate() -> Expr {
+        pub fn paper_profit_rate() -> Expr {
             ((col(MarketPrice.into()) / col(AveragePrice.into()) - lit(1)) * lit(100))
                 .alias(PaperProfitRate.into())
         }
 
-        pub fn captal_gain() -> Expr {
+        pub fn paper_profit() -> Expr {
             ((col(MarketPrice.into()) - col(AveragePrice.into())) * col(AccruedQty.into()))
                 .alias(PaperProfit.into())
+        }
+
+        pub fn market_value() -> Expr {
+            ((col(MarketPrice.into())) * col(AccruedQty.into())).alias(MarketValue.into())
         }
 
         pub fn profit() -> Expr {
@@ -172,6 +176,11 @@ pub mod polars {
 
         pub fn sell_profit() -> Expr {
             ((col(Price.into()) - col(AveragePrice.into())) * col(Qty.into())).alias(Profit.into())
+        }
+
+        pub fn allocation() -> Expr {
+            (col(MarketValue.into()) * lit(100) / col(MarketValue.into()).sum())
+                .alias(AllocationRate.into())
         }
     }
 
