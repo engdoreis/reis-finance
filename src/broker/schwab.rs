@@ -59,7 +59,7 @@ impl IBroker for Schwab {
             )
             .with_column(
                 when(col("Symbol").str().contains(lit(r"\d{6,12}"), false))
-                    .then(col("Description").str().extract(r"\((.*)\)", 1))
+                    .then(col("Description").str().extract(lit(r"\((.*)\)"), 1))
                     .otherwise(col("Symbol"))
                     .alias("Symbol"),
             )
@@ -83,7 +83,7 @@ impl IBroker for Schwab {
                 when(col("Symbol").eq(lit("")))
                     .then(
                         when(col("Description").str().contains(lit(r"\(.+\)"), false))
-                            .then(col("Description").str().extract(r"\((.*)\)", 1))
+                            .then(col("Description").str().extract(lit(r"\((.*)\)"), 1))
                             // .then(col("Description"))
                             .otherwise(lit("CASH")),
                     )
