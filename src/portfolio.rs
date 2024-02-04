@@ -33,7 +33,7 @@ impl Portfolio {
             ])
             .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
             // .select([col("*").exclude([schema::Columns::AccruedQty.as_str()])])
-            ;
+            .sort(schema::Columns::Ticker.into(), SortOptions::default());
 
         Portfolio {
             data: result,
@@ -83,7 +83,14 @@ impl Portfolio {
             .with_column(
                 col(&(schema::Columns::AccruedQty.as_str().to_string() + "_right"))
                     .alias(schema::Columns::AccruedQty.into()),
+            )
+            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
+            .with_column(
+                (col(schema::Columns::AccruedQty.into())
+                    * col(schema::Columns::AveragePrice.into()))
+                .alias(schema::Columns::Amount.into()),
             );
+
         Ok(self)
     }
 
@@ -298,7 +305,7 @@ mod unittest {
 
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::Amount.into() => &[1293.996, 691.0],
             Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
@@ -339,7 +346,7 @@ mod unittest {
 
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::Amount.into() =>&[1293.996, 691.0],
             Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
@@ -375,7 +382,7 @@ mod unittest {
 
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::Amount.into() => &[1293.996, 691.0],
             Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
@@ -420,7 +427,7 @@ mod unittest {
 
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[2020.236, 1541.4],
+            Columns::Amount.into() => &[1293.996, 691.0],
             Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
@@ -428,7 +435,7 @@ mod unittest {
             Columns::PaperProfitRate.into() => &[6.039, -50.9841],
             Columns::PaperProfit.into() => &[78.144, -352.3],
             Columns::Profit.into() => &[87.984,-350.85],
-            Columns::ProfitRate.into() => &[4.3551, -22.7618],
+            Columns::ProfitRate.into() => &[6.7994, -50.7742],
         )
         .unwrap();
 
