@@ -1,6 +1,7 @@
 use crate::schema;
 use anyhow::Result;
 use polars::prelude::*;
+use polars_ops::pivot::{pivot, PivotAgg};
 
 pub struct Dividends {
     data: LazyFrame,
@@ -28,14 +29,14 @@ impl Dividends {
             )
             .collect()?;
 
-        Ok(polars_lazy::frame::pivot::pivot(
+        Ok(pivot(
             &result,
             [schema::Columns::Amount.as_str()],
             ["Year"],
             ["Month"],
             true,
-            // Some(col("*").sum()),
-            None,
+            Some(PivotAgg::Sum),
+            // None,
             None,
         )?
         .lazy()
