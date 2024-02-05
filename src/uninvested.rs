@@ -18,10 +18,11 @@ impl Cash {
                     //Make the Amount negative when selling.
                     when(col(schema::Columns::Action.into()).str().contains(
                         lit(format!(
-                            "{}|{}|{}",
+                            "{}|{}|{}|{}",
                             schema::Action::Buy.as_str(),
                             schema::Action::Withdraw.as_str(),
                             schema::Action::Tax.as_str(),
+                            schema::Action::Fee.as_str(),
                         )),
                         false,
                     ))
@@ -46,23 +47,27 @@ impl Cash {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Action::*;
+    use crate::schema::Action::{self, *};
     use crate::schema::Columns::*;
 
     #[test]
     fn uninvested_cash_success() {
         let actions: &[&str] = &[
-            Deposit.into(),
-            Buy.into(),
-            Buy.into(),
-            Sell.into(),
-            Dividend.into(),
-            Withdraw.into(),
-        ];
+            Deposit,
+            Buy,
+            Buy,
+            Sell,
+            Dividend,
+            Withdraw,
+            Action::Tax,
+            Fee,
+        ]
+        .map(|x| x.into());
+
         let orders = df! (
             Action.into() => actions,
-            Ticker.into() => &["CASH", "GOOGL", "GOOGL", "GOOGL", "GOOGL", "CASH"],
-            Amount.into() => &[10335.1, 4397.45, 2094.56, 3564.86, 76.87, 150.00],
+            Ticker.into() => &["CASH", "GOOGL", "GOOGL", "GOOGL", "GOOGL", "CASH", "CASH", "CASH"],
+            Amount.into() => &[10335.1, 4397.45, 2094.56, 3564.86, 76.87, 150.00, 3.98, 1.56],
         )
         .unwrap();
 
@@ -78,7 +83,7 @@ mod unittest {
         assert_eq!(
             df! (
                 Ticker.into() => &[cash_type],
-                Amount.into() => &[7334.82],
+                Amount.into() => &[7329.28],
             )
             .unwrap(),
             cash
