@@ -1,4 +1,5 @@
-use crate::schema;
+use crate::schema::{Action, Columns};
+use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -9,48 +10,34 @@ pub struct Dividends {
 impl Dividends {
     pub fn new(orders: &DataFrame) -> Dividends {
         Dividends {
-            data: orders.clone().lazy().filter(
-                col(schema::Columns::Action.into()).eq(lit(schema::Action::Dividend.as_str())),
-            ),
+            data: orders
+                .clone()
+                .lazy()
+                .filter(
+                    col(Columns::Action.into())
+                        .eq(lit(Action::Dividend.as_str()))
+                        .or(col(Columns::Action.into()).eq(lit(Action::Tax.as_str())))
+                        .or(col(Columns::Action.into()).eq(lit(Action::Interest.as_str()))),
+                )
+                .with_column(utils::polars::compute::negative_amount_on_tax()),
         }
     }
 
     pub fn pivot(&self) -> Result<DataFrame> {
-        let result = self
-            .data
-            .clone()
-            .with_column(col(schema::Columns::Date.into()).dt().year().alias("Year"))
-            .with_column(
-                col(schema::Columns::Date.into())
-                    .dt()
-                    .month()
-                    .alias("Month"),
-            )
-            .collect()?;
-
-        Ok(polars_lazy::frame::pivot::pivot(
-            &result,
-            [schema::Columns::Amount.as_str()],
-            ["Year"],
-            ["Month"],
-            true,
-            // Some(col("*").sum()),
-            None,
-            None,
-        )?
-        .lazy()
-        .fill_null(0)
-        .collect()?)
+        Ok(
+            utils::polars::transform::pivot_year_months(&self.data, &[Columns::Amount.as_str()])?
+                .collect()?,
+        )
     }
 
     pub fn by_ticker(&self) -> Result<DataFrame> {
         let result = self
             .data
             .clone()
-            .group_by([col(schema::Columns::Ticker.into())])
-            .agg([col(schema::Columns::Amount.into())
+            .group_by([col(Columns::Ticker.into())])
+            .agg([col(Columns::Amount.into())
                 .sum()
-                .alias(schema::Columns::Dividends.into())])
+                .alias(Columns::Dividends.into())])
             .collect()?;
 
         Ok(result)
@@ -86,8 +73,29 @@ mod unittest {
         .unwrap()
         .sort(&[Columns::Ticker.as_str()], false, false)
         .unwrap();
+        assert_eq!(expected, result);
+    }
 
-        // dbg!(&result);
+    #[test]
+    fn dividends_pivot_success() {
+        let orders = utils::test::generate_mocking_orders();
+
+        let result = Dividends::new(&orders)
+            .pivot()
+            .unwrap()
+            .lazy()
+            .select([col("Year"), dtype_col(&DataType::Float64).round(4)])
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            "Year" => &["2024", "Total"],
+            "May" => &[1.34, 1.34,],
+            "August" => &[1.92, 1.92,],
+            "September" => &[ 2.75, 2.75,],
+            "Total" => &[6.01, 6.01],
+        )
+        .unwrap();
         assert_eq!(expected, result);
     }
 }

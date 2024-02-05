@@ -1,8 +1,9 @@
-use crate::schema;
+use crate::schema::{self, Action};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 use polars_lazy::dsl::as_struct;
+use std::str::FromStr;
 
 pub struct AverageCost {
     data: LazyFrame,
@@ -19,13 +20,13 @@ impl AverageCost {
     pub fn with_cumulative(mut self) -> Self {
         self.data = self
             .data
-            .filter(utils::polars::filter::buy_and_sell())
-            .with_column(utils::polars::compute::negative_qty_on_sell())
+            .filter(utils::polars::filter::buy_or_sell_or_split())
             .with_column(
                 // Use struct type to operate over two columns.
                 as_struct(vec![
                     col(schema::Columns::Price.into()),
                     col(schema::Columns::Qty.into()),
+                    col(schema::Columns::Action.into()),
                 ])
                 // Apply function on group by Ticker.
                 .apply(
@@ -37,23 +38,30 @@ impl AverageCost {
                             .into_iter()
                             .map(|values| {
                                 // values is a slice with all fields of the struct.
-                                let mut values = values.iter();
+                                let mut iter = values.iter();
                                 //Unwrap fields of the struct as f64.
-                                let AnyValue::Float64(price) = values.next().unwrap() else {
-                                    panic!("Can't unwrap as Float64");
+                                let AnyValue::Float64(price) = iter.next().unwrap() else {
+                                    panic!("Can't unwrap price in {:?}", values);
                                 };
-                                let AnyValue::Float64(qty) = values.next().unwrap() else {
-                                    panic!("Can't unwrap as Float64");
+                                let AnyValue::Float64(qty) = iter.next().unwrap() else {
+                                    panic!("Can't unwrap as qty in {:?}", values);
+                                };
+                                let AnyValue::String(action) = *iter.next().unwrap() else {
+                                    panic!("Can't unwrap Action in {:?}", values);
                                 };
 
                                 // Compute the cum_qty and average price using the formula above and return a tuple that will be converted into a struct.
-                                let new_cum_qty = cum_qty + qty;
-                                cum_price = if *qty < 0.0 {
-                                    cum_price
-                                } else {
-                                    (cum_price * cum_qty + price * qty) / new_cum_qty
+                                (cum_price, cum_qty) = match Action::from_str(action).unwrap() {
+                                    Action::Split => (cum_price / qty, cum_qty * qty),
+                                    Action::Sell => (cum_price, cum_qty - qty),
+                                    Action::Buy => {
+                                        let new_cum_qty = cum_qty + qty;
+                                        let cum_price =
+                                            (cum_price * cum_qty + price * qty) / new_cum_qty;
+                                        (cum_price, new_cum_qty)
+                                    }
+                                    _ => panic!("Unsupported action"),
                                 };
-                                cum_qty = new_cum_qty;
                                 (cum_price, cum_qty)
                             })
                             .unzip();
@@ -112,6 +120,7 @@ mod unittest {
         let result = AverageCost::new(&orders)
             .with_cumulative()
             .collect_latest()
+            // .collect()
             .unwrap()
             .lazy()
             .select([
@@ -124,8 +133,8 @@ mod unittest {
 
         let expected = df! (
             Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::AveragePrice.into() => &[98.03, 34.55],
-            Columns::AccruedQty.into() => &[13.20, 20.0],
+            Columns::AveragePrice.into() => &[98.03, 69.10],
+            Columns::AccruedQty.into() => &[13.20, 10.0],
         )
         .unwrap()
         .sort(&[Columns::Ticker.as_str()], false, false)

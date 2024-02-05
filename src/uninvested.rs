@@ -9,20 +9,26 @@ pub struct Cash {
 impl Cash {
     pub fn new(orders: DataFrame) -> Self {
         Self {
-            data: orders.lazy().select([
-                //Make the Amount negative when selling.
-                when(col(schema::Columns::Action.into()).str().contains(
-                    lit(format!(
-                        "{}|{}",
-                        <schema::Action as Into<&str>>::into(schema::Action::Buy),
-                        <schema::Action as Into<&str>>::into(schema::Action::Withdraw)
-                    )),
-                    false,
-                ))
-                .then(col(schema::Columns::Amount.into()) * lit(-1))
-                .otherwise(col(schema::Columns::Amount.into()))
-                .alias(schema::Columns::Amount.into()),
-            ]),
+            data: orders
+                .lazy()
+                .filter(
+                    col(schema::Columns::Action.into()).neq(lit(schema::Action::Ignore.as_str())),
+                )
+                .select([
+                    //Make the Amount negative when selling.
+                    when(col(schema::Columns::Action.into()).str().contains(
+                        lit(format!(
+                            "{}|{}|{}",
+                            schema::Action::Buy.as_str(),
+                            schema::Action::Withdraw.as_str(),
+                            schema::Action::Tax.as_str(),
+                        )),
+                        false,
+                    ))
+                    .then(col(schema::Columns::Amount.into()) * lit(-1))
+                    .otherwise(col(schema::Columns::Amount.into()))
+                    .alias(schema::Columns::Amount.into()),
+                ]),
         }
     }
 
