@@ -83,12 +83,12 @@ mod unittest {
             .unwrap();
 
         let expected = df! (
-            Columns::Date.into() => &[ "2024-01-09", "2024-01-10", "2024-01-13"],
-            Columns::Ticker.into() => &["GOOGL", "GOOGL", "APPL"],
-            Columns::Qty.into() => &[4.0, 8.0, 3.0],
-            Columns::Price.into() => &[35.4, 36.4, 134.6],
-            Columns::Amount.into() => &[141.6, 291.2, 403.8],
-            Columns::Profit.into() => &[2.4, 12.8, 81.36],
+            Columns::Date.into() => &[ "2024-06-23", "2024-08-19", "2024-09-20"],
+            Columns::Ticker.into() => &["APPL", "GOOGL", "GOOGL"],
+            Columns::Qty.into() => &[ 3.0, 4.0, 8.0],
+            Columns::Price.into() => &[134.6, 35.4, 36.4],
+            Columns::Amount.into() => &[403.8, 141.6, 291.2],
+            Columns::Profit.into() => &[81.36, 2.4, 12.8],
         )
         .unwrap()
         .lazy()

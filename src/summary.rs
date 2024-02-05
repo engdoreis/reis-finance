@@ -24,9 +24,6 @@ impl Summary {
                 col(Columns::PaperProfit.into())
                     .sum()
                     .alias(Columns::PaperProfit.into()),
-                col(Columns::Dividends.into())
-                    .sum()
-                    .alias(Columns::Dividends.into()),
                 col(Columns::Amount.into())
                     .filter(col(Columns::Ticker.into()).eq(lit::<&str>(schema::Type::Cash.into())))
                     .alias(Columns::UninvestedCash.into()),
@@ -43,6 +40,19 @@ impl Summary {
                 .select([col(Columns::Profit.into())
                     .sum()
                     .alias(Columns::LiquidatedProfit.into())])
+                .collect()?,
+        ])?
+        .lazy();
+        Ok(self)
+    }
+
+    pub fn with_dividends(&mut self, dividends: &DataFrame) -> Result<&mut Self> {
+        self.data = polars::functions::concat_df_horizontal(&[
+            self.data.clone().collect()?,
+            dividends
+                .clone()
+                .lazy()
+                .select([col(Columns::Dividends.into()).sum()])
                 .collect()?,
         ])?
         .lazy();

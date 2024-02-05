@@ -48,6 +48,7 @@ pub enum Action {
     Dividend,
     Deposit,
     Tax,
+    Fee,
     Interest,
     Withdraw,
     Ignore,

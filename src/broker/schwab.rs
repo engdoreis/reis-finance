@@ -84,7 +84,6 @@ impl IBroker for Schwab {
                     .then(
                         when(col("Description").str().contains(lit(r"\(.+\)"), false))
                             .then(col("Description").str().extract(lit(r"\((.*)\)"), 1))
-                            // .then(col("Description"))
                             .otherwise(lit("CASH")),
                     )
                     .otherwise(col("Symbol"))
@@ -101,7 +100,14 @@ impl IBroker for Schwab {
                     .alias(Columns::Commission.into()),
                 lit(Country::Usa.as_str()).alias(Columns::Country.into()),
                 lit(Type::Stock.to_string()).alias(Columns::Type.into()),
+                col("Description"),
             ])
+            .with_column(
+                when(col("Description").str().contains(lit(r"FEE"), false))
+                    .then(lit(schema::Action::Fee.as_str()))
+                    .otherwise(col(Columns::Action.into()))
+                    .alias(Columns::Action.into()),
+            )
             .with_column(
                 col(Columns::Price.into())
                     .fill_null(col(Columns::Amount.into()))
@@ -112,6 +118,7 @@ impl IBroker for Schwab {
                 lit(Action::Tax.as_str()),
                 false,
             ))
+            .select([col("*").exclude(["Description"])])
             .sort(
                 Columns::Date.into(),
                 SortOptions {

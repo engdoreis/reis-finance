@@ -42,7 +42,7 @@ pub mod test {
         let dates: Vec<String> = actions
             .iter()
             .enumerate()
-            .map(|(i, _)| format!("2024-01-{}", 5 + i))
+            .map(|(i, _)| format!("2024-{}-{}", 4 + i % 6, 15 + i % 14))
             .collect();
 
         let country: Vec<&str> = vec![Usa.into(); actions.len()];
@@ -169,6 +169,16 @@ pub mod polars {
                 col(Action.into())
                     .str()
                     .contains_literal(lit(Action::Withdraw.as_str())),
+            )
+            .then(col(Amount.into()) * lit(-1))
+            .otherwise(col(Amount.into()))
+        }
+
+        pub fn negative_amount_on_tax() -> Expr {
+            when(
+                col(Action.into())
+                    .str()
+                    .contains_literal(lit(Action::Tax.as_str())),
             )
             .then(col(Amount.into()) * lit(-1))
             .otherwise(col(Amount.into()))
