@@ -8,7 +8,7 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn new(orders: &DataFrame) -> Dividends {
+    pub fn from_orders(orders: &DataFrame) -> Dividends {
         Dividends {
             data: orders
                 .clone()
@@ -54,7 +54,7 @@ mod unittest {
     fn dividends_by_ticker_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::new(&orders)
+        let result = Dividends::from_orders(&orders)
             .by_ticker()
             .unwrap()
             .lazy()
@@ -80,7 +80,7 @@ mod unittest {
     fn dividends_pivot_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::new(&orders)
+        let result = Dividends::from_orders(&orders)
             .pivot()
             .unwrap()
             .lazy()

@@ -12,7 +12,7 @@ pub struct Summary {
 }
 
 impl Summary {
-    pub fn new(portfolio: &DataFrame) -> Result<Self> {
+    pub fn from_portfolio(portfolio: &DataFrame) -> Result<Self> {
         Ok(Summary {
             data: portfolio.clone().lazy().select([
                 (col(Columns::AveragePrice.into()) * col(Columns::AccruedQty.into()))

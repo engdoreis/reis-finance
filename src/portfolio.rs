@@ -13,7 +13,7 @@ pub struct Portfolio {
 }
 
 impl Portfolio {
-    pub fn new(orders: &DataFrame) -> Portfolio {
+    pub fn from_orders(orders: &DataFrame) -> Portfolio {
         let result = orders
             .clone()
             .lazy()
@@ -67,7 +67,7 @@ impl Portfolio {
     }
 
     pub fn with_average_price(mut self) -> Result<Self> {
-        let avg = AverageCost::new(&self.orders)
+        let avg = AverageCost::from_orders(&self.orders)
             .with_cumulative()
             .collect_latest()?;
 
@@ -264,7 +264,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::new(&orders)
+        let result = Portfolio::from_orders(&orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .collect()
@@ -295,7 +295,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::new(&orders)
+        let result = Portfolio::from_orders(&orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
@@ -335,7 +335,7 @@ mod unittest {
         .unwrap();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::new(&orders)
+        let result = Portfolio::from_orders(&orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
@@ -371,7 +371,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::new(&orders)
+        let result = Portfolio::from_orders(&orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
@@ -415,7 +415,7 @@ mod unittest {
         .unwrap();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::new(&orders)
+        let result = Portfolio::from_orders(&orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()

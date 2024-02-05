@@ -38,10 +38,10 @@ fn execute(orders: DataFrame) -> Result<()> {
     // );
     let mut yahoo_scraper = Yahoo::new();
 
-    let dividends = Dividends::new(&orders).by_ticker()?;
-    let cash = uninvested::Cash::new(orders.clone()).collect()?;
+    let dividends = Dividends::from_orders(&orders).by_ticker()?;
+    let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
 
-    let portfolio = Portfolio::new(&orders)
+    let portfolio = Portfolio::from_orders(&orders)
         .with_quotes(&mut yahoo_scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
@@ -51,9 +51,9 @@ fn execute(orders: DataFrame) -> Result<()> {
         .with_allocation()
         .collect()?;
 
-    let profit = liquidated::Profit::new(&orders)?.collect()?;
+    let profit = liquidated::Profit::from_orders(&orders)?.collect()?;
 
-    let summary = Summary::new(&portfolio)?
+    let summary = Summary::from_portfolio(&portfolio)?
         .with_dividends(&dividends)?
         .with_capital_invested(&orders)?
         .with_liquidated_profit(&profit)?
@@ -63,9 +63,9 @@ fn execute(orders: DataFrame) -> Result<()> {
     println!("{}", &portfolio);
 
     dbg!(&profit);
-    dbg!(liquidated::Profit::new(&orders)?.pivot()?);
+    dbg!(liquidated::Profit::from_orders(&orders)?.pivot()?);
 
-    let pivot = Dividends::new(&orders).pivot()?;
+    let pivot = Dividends::from_orders(&orders).pivot()?;
     dbg!(&pivot);
     Ok(())
 }

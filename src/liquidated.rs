@@ -9,8 +9,10 @@ pub struct Profit {
 }
 
 impl Profit {
-    pub fn new(orders: &DataFrame) -> Result<Self> {
-        let avg = AverageCost::new(&orders).with_cumulative().collect()?;
+    pub fn from_orders(orders: &DataFrame) -> Result<Self> {
+        let avg = AverageCost::from_orders(&orders)
+            .with_cumulative()
+            .collect()?;
 
         let data = orders
             .clone()
@@ -83,7 +85,7 @@ mod unittest {
     fn realized_profit_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Profit::new(&orders)
+        let result = Profit::from_orders(&orders)
             .unwrap()
             .collect()
             .unwrap()

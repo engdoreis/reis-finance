@@ -7,7 +7,7 @@ pub struct Cash {
 }
 
 impl Cash {
-    pub fn new(orders: DataFrame) -> Self {
+    pub fn from_orders(orders: DataFrame) -> Self {
         Self {
             data: orders
                 .lazy()
@@ -73,7 +73,7 @@ mod unittest {
 
         let cash_type: &str = schema::Type::Cash.into();
 
-        let cash = Cash::new(orders)
+        let cash = Cash::from_orders(orders)
             .collect()
             .unwrap()
             .lazy()
