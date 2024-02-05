@@ -57,6 +57,17 @@ impl Profit {
         Ok(Profit { data: data })
     }
 
+    pub fn pivot(&self) -> Result<DataFrame> {
+        Ok(utils::polars::transform::pivot_year_months(
+            &self.data.clone().select([
+                col(schema::Columns::Date.as_str()),
+                col(schema::Columns::Profit.as_str()),
+            ]),
+            &[schema::Columns::Profit.as_str()],
+        )?
+        .collect()?)
+    }
+
     pub fn collect(self) -> Result<DataFrame> {
         Ok(self.data.collect()?)
     }

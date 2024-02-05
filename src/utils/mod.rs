@@ -227,14 +227,13 @@ pub mod polars {
     }
 
     pub mod transform {
-        use crate::schema::{Action, Columns};
-        use crate::utils;
+        use crate::schema::Columns;
         use anyhow::Result;
         use polars::prelude::*;
         use polars_lazy::dsl::dtype_col;
         use polars_ops::pivot::{pivot, PivotAgg};
 
-        pub fn pivot_year_months(data: &LazyFrame) -> Result<LazyFrame> {
+        pub fn pivot_year_months(data: &LazyFrame, value_columns: &[&str]) -> Result<LazyFrame> {
             let result = data
                 .clone()
                 .with_columns([
@@ -263,7 +262,7 @@ pub mod polars {
 
             let result = pivot(
                 &result,
-                [Columns::Amount.as_str()],
+                value_columns,
                 ["Year"],
                 ["Month"],
                 false,
@@ -292,7 +291,8 @@ pub mod polars {
                     ]),
                 ],
                 Default::default(),
-            )?)
+            )?
+            .with_column(dtype_col(&DataType::Float64).round(2)))
         }
     }
 }

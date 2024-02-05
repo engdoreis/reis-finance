@@ -1,11 +1,7 @@
-use std::result;
-
 use crate::schema::{Action, Columns};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
-use polars_lazy::dsl::dtype_col;
-use polars_ops::pivot::{pivot, PivotAgg};
 
 pub struct Dividends {
     data: LazyFrame,
@@ -28,7 +24,10 @@ impl Dividends {
     }
 
     pub fn pivot(&self) -> Result<DataFrame> {
-        Ok(utils::polars::transform::pivot_year_months(&self.data)?.collect()?)
+        Ok(
+            utils::polars::transform::pivot_year_months(&self.data, &[Columns::Amount.as_str()])?
+                .collect()?,
+        )
     }
 
     pub fn by_ticker(&self) -> Result<DataFrame> {
