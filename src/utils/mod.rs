@@ -225,4 +225,74 @@ pub mod polars {
                 .or(col(Action.into()).eq(lit(Withdraw.as_str())))
         }
     }
+
+    pub mod transform {
+        use crate::schema::{Action, Columns};
+        use crate::utils;
+        use anyhow::Result;
+        use polars::prelude::*;
+        use polars_lazy::dsl::dtype_col;
+        use polars_ops::pivot::{pivot, PivotAgg};
+
+        pub fn pivot_year_months(data: &LazyFrame) -> Result<LazyFrame> {
+            let result = data
+                .clone()
+                .with_columns([
+                    col(Columns::Date.into()).dt().year().alias("Year"),
+                    col(Columns::Date.into()).dt().month().alias("Month"),
+                ])
+                .collect()?;
+
+            let mut months: Vec<_> = result
+                .column("Month")?
+                .unique_stable()?
+                .iter()
+                .map(|cell| {
+                    let AnyValue::Int8(month) = cell else {
+                        panic!("Can't get month from: {cell}");
+                    };
+                    month as u8
+                })
+                .collect();
+            months.sort();
+
+            let mut sorted_columns = vec![col("Year")];
+            sorted_columns.extend(months.iter().map(|month| {
+                col(&month.to_string()).alias(chrono::Month::try_from(*month).unwrap().name())
+            }));
+
+            let result = pivot(
+                &result,
+                [Columns::Amount.as_str()],
+                ["Year"],
+                ["Month"],
+                false,
+                Some(PivotAgg::Sum),
+                None,
+            )?
+            .lazy()
+            .fill_null(0)
+            .select(sorted_columns)
+            .with_column(col("Year").cast(DataType::String))
+            .with_column(
+                fold_exprs(
+                    lit(0),
+                    |acc, x| Ok(Some(acc + x)),
+                    [dtype_col(&DataType::Float64)],
+                )
+                .alias(Columns::Total.into()),
+            );
+
+            Ok(concat(
+                [
+                    result.clone(),
+                    result.select([
+                        lit("Total").alias("Year"),
+                        dtype_col(&DataType::Float64).sum(),
+                    ]),
+                ],
+                Default::default(),
+            )?)
+        }
+    }
 }
