@@ -3,14 +3,14 @@ extern crate reis_finance_lib;
 use anyhow::Result;
 
 use polars::prelude::*;
-use polars_lazy::frame::IntoLazy;
+
 use reis_finance_lib::broker::{IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
+use reis_finance_lib::liquidated;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::scraper::Yahoo;
 use reis_finance_lib::summary::Summary;
 use reis_finance_lib::uninvested;
-use reis_finance_lib::{liquidated, summary};
 
 fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_TABLE_ROUNDED_CORNERS", "1"); // apply rounded corners to UTF8-styled tables.
@@ -38,10 +38,10 @@ fn execute(orders: DataFrame) -> Result<()> {
     // );
     let mut yahoo_scraper = Yahoo::new();
 
-    let dividends = Dividends::from_orders(&orders).by_ticker()?;
+    let dividends = Dividends::from_orders(orders.clone()).by_ticker()?;
     let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
 
-    let portfolio = Portfolio::from_orders(&orders)
+    let portfolio = Portfolio::from_orders(orders.clone())
         .with_quotes(&mut yahoo_scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
@@ -51,21 +51,21 @@ fn execute(orders: DataFrame) -> Result<()> {
         .with_allocation()
         .collect()?;
 
-    let profit = liquidated::Profit::from_orders(&orders)?.collect()?;
+    let profit = liquidated::Profit::from_orders(orders.clone())?.collect()?;
 
-    let summary = Summary::from_portfolio(&portfolio)?
-        .with_dividends(&dividends)?
-        .with_capital_invested(&orders)?
-        .with_liquidated_profit(&profit)?
+    let summary = Summary::from_portfolio(portfolio.clone())?
+        .with_dividends(dividends)?
+        .with_capital_invested(orders.clone())?
+        .with_liquidated_profit(profit.clone())?
         .collect()?;
     println!("{}", &summary);
 
     println!("{}", &portfolio);
 
     dbg!(&profit);
-    dbg!(liquidated::Profit::from_orders(&orders)?.pivot()?);
+    dbg!(liquidated::Profit::from_orders(orders.clone())?.pivot()?);
 
-    let pivot = Dividends::from_orders(&orders).pivot()?;
+    let pivot = Dividends::from_orders(orders.clone()).pivot()?;
     dbg!(&pivot);
     Ok(())
 }

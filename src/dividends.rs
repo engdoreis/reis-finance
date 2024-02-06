@@ -8,11 +8,10 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn from_orders(orders: &DataFrame) -> Dividends {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+        let orders = orders.into();
         Dividends {
             data: orders
-                .clone()
-                .lazy()
                 .filter(
                     col(Columns::Action.into())
                         .eq(lit(Action::Dividend.as_str()))
@@ -54,7 +53,7 @@ mod unittest {
     fn dividends_by_ticker_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::from_orders(&orders)
+        let result = Dividends::from_orders(orders)
             .by_ticker()
             .unwrap()
             .lazy()
@@ -80,7 +79,7 @@ mod unittest {
     fn dividends_pivot_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::from_orders(&orders)
+        let result = Dividends::from_orders(orders)
             .pivot()
             .unwrap()
             .lazy()

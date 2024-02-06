@@ -7,10 +7,10 @@ pub struct Cash {
 }
 
 impl Cash {
-    pub fn from_orders(orders: DataFrame) -> Self {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+        let orders: LazyFrame = orders.into();
         Self {
             data: orders
-                .lazy()
                 .filter(
                     col(schema::Columns::Action.into()).neq(lit(schema::Action::Ignore.as_str())),
                 )
@@ -73,7 +73,7 @@ mod unittest {
 
         let cash_type: &str = schema::Type::Cash.into();
 
-        let cash = Cash::from_orders(orders)
+        let cash = Cash::from_orders(orders.clone())
             .collect()
             .unwrap()
             .lazy()

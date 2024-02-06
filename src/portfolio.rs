@@ -8,15 +8,15 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 pub struct Portfolio {
-    orders: DataFrame,
+    orders: LazyFrame,
     data: LazyFrame,
 }
 
 impl Portfolio {
-    pub fn from_orders(orders: &DataFrame) -> Portfolio {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+        let orders: LazyFrame = orders.into();
         let result = orders
             .clone()
-            .lazy()
             // Filter buy and sell actions.
             .filter(utils::polars::filter::buy_or_sell())
             .with_column(utils::polars::compute::negative_qty_on_sell())
@@ -37,12 +37,12 @@ impl Portfolio {
 
         Portfolio {
             data: result,
-            orders: orders.clone(),
+            orders,
         }
     }
 
     pub fn with_quotes<T: IScraper>(mut self, scraper: &mut T) -> Result<Self> {
-        let result = self.data.clone().collect()?;
+        let result = self.data.collect()?;
 
         let quotes = Self::quotes(scraper, &result)?;
 
@@ -67,7 +67,7 @@ impl Portfolio {
     }
 
     pub fn with_average_price(mut self) -> Result<Self> {
-        let avg = AverageCost::from_orders(&self.orders)
+        let avg = AverageCost::from_orders(self.orders.clone())
             .with_cumulative()
             .collect_latest()?;
 
@@ -114,7 +114,6 @@ impl Portfolio {
     pub fn with_dividends(mut self, dividends: DataFrame) -> Self {
         self.data = self
             .data
-            .clone()
             .join(
                 dividends.lazy(),
                 [col(schema::Columns::Ticker.into())],
@@ -128,7 +127,6 @@ impl Portfolio {
     pub fn with_uninvested_cash(mut self, cash: DataFrame) -> Self {
         self.data = self
             .data
-            .clone()
             .join(
                 cash.lazy(),
                 [
@@ -264,7 +262,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::from_orders(&orders)
+        let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .collect()
@@ -295,7 +293,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::from_orders(&orders)
+        let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
@@ -335,7 +333,7 @@ mod unittest {
         .unwrap();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::from_orders(&orders)
+        let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
@@ -371,7 +369,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::from_orders(&orders)
+        let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
@@ -415,7 +413,7 @@ mod unittest {
         .unwrap();
 
         let mut scraper = Mock::new();
-        let result = Portfolio::from_orders(&orders)
+        let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
             .with_average_price()
