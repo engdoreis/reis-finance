@@ -103,7 +103,7 @@ impl IBroker for Trading212 {
                     .alias(Columns::Price.into()),
             );
 
-        Ok(out.collect()?)
+        Ok(Self::sanitize(out).collect()?)
     }
 }
 

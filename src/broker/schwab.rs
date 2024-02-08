@@ -117,17 +117,9 @@ impl IBroker for Schwab {
                 lit(r".*Tax.*"),
                 lit(Action::Tax.as_str()),
                 false,
-            ))
-            .select([col("*").exclude(["Description"])])
-            .sort(
-                Columns::Date.into(),
-                SortOptions {
-                    descending: false,
-                    ..SortOptions::default()
-                },
-            );
+            ));
 
-        Ok(df.collect()?)
+        Ok(Self::sanitize(df).collect()?)
     }
 }
 

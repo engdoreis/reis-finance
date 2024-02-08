@@ -5,9 +5,10 @@ use polars_lazy::frame::LazyFrame;
 pub use schwab::Schwab;
 pub use trading212::Trading212;
 
+use crate::schema::Columns::*;
 use anyhow::Result;
 use glob::glob;
-use polars::prelude::{concat, DataFrame, IntoLazy};
+use polars::prelude::{col, concat, DataFrame, IntoLazy, SortOptions};
 use std::path::Path;
 
 pub trait IBroker {
@@ -21,5 +22,19 @@ pub trait IBroker {
             frame = concat([frame, new], Default::default())?;
         }
         Ok(frame.collect()?)
+    }
+
+    fn sanitize(frame: impl crate::IntoLazyFrame) -> LazyFrame {
+        let columns = [
+            Date, Action, Ticker, Qty, Price, Amount, Tax, Commission, Country, Type,
+        ]
+        .map(|x| col(x.as_str()));
+        frame.into().select(columns).sort(
+            Date.into(),
+            SortOptions {
+                descending: false,
+                ..SortOptions::default()
+            },
+        )
     }
 }
