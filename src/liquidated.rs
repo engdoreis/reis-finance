@@ -95,7 +95,7 @@ mod unittest {
             .unwrap();
 
         let expected = df! (
-            Columns::Date.into() => &[ "2024-06-23", "2024-08-19", "2024-09-20"],
+            Columns::Date.into() => &[ "2024-05-23", "2024-08-19", "2024-09-20"],
             Columns::Ticker.into() => &["APPL", "GOOGL", "GOOGL"],
             Columns::Qty.into() => &[ 3.0, 4.0, 8.0],
             Columns::Price.into() => &[134.6, 35.4, 36.4],

@@ -253,8 +253,8 @@ mod unittest {
             .with_ticker("TSCO")
             .with_country(schema::Country::Uk)
             .load(SearchBy::TimeRange {
-                start: "2023-01-05".parse().unwrap(),
-                end: "2023-01-06".parse().unwrap(),
+                start: "2024-02-05".parse().unwrap(),
+                end: "2024-02-06".parse().unwrap(),
                 interval: Interval::Day(1),
             })
             .unwrap()
@@ -264,8 +264,8 @@ mod unittest {
         assert_eq!(
             data.first().unwrap(),
             &Element {
-                date: "2023-01-05".parse().unwrap(),
-                number: 2.3850000000000002,
+                date: "2024-02-05".parse().unwrap(),
+                number: 2.8979998779296876,
             }
         )
     }

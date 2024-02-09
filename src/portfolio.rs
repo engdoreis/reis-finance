@@ -4,8 +4,9 @@ use crate::scraper::{self, IScraper};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
-use std::collections::HashMap;
 use std::str::FromStr;
+
+use std::collections::HashMap;
 
 pub struct Portfolio {
     orders: LazyFrame,
@@ -198,70 +199,11 @@ mod unittest {
     use crate::scraper::{self, Dividends, Element, ElementSet, Quotes, Splits};
     use crate::utils;
 
-    struct Mock {
-        ticker: String,
-        map: HashMap<String, f64>,
-    }
-
-    impl Mock {
-        pub fn new() -> Self {
-            Mock {
-                ticker: "".into(),
-                map: HashMap::from([("GOOGL".into(), 33.87), ("APPL".into(), 103.95)]),
-            }
-        }
-    }
-
-    impl scraper::IScraper for Mock {
-        fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
-            self.ticker = ticker.into();
-            self
-        }
-
-        fn with_country(&mut self, _country: schema::Country) -> &mut Self {
-            self
-        }
-
-        fn load(&mut self, _search_interval: scraper::SearchBy) -> Result<&Self> {
-            Ok(self)
-        }
-
-        fn quotes(&self) -> Result<Quotes> {
-            Ok(ElementSet {
-                columns: (Columns::Date, Columns::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: *self.map.get(&self.ticker).unwrap(),
-                }],
-            })
-        }
-
-        fn splits(&self) -> Result<Splits> {
-            Ok(ElementSet {
-                columns: (Columns::Date, Columns::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: 2.0,
-                }],
-            })
-        }
-
-        fn dividends(&self) -> Result<Dividends> {
-            Ok(ElementSet {
-                columns: (Columns::Date, Columns::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: 2.5,
-                }],
-            })
-        }
-    }
-
     #[test]
     fn portfolio_with_quotes_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let mut scraper = Mock::new();
+        let mut scraper = utils::test::mock::Scraper::new();
         let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
@@ -292,7 +234,7 @@ mod unittest {
     fn portfolio_with_average_price_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let mut scraper = Mock::new();
+        let mut scraper = utils::test::mock::Scraper::new();
         let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
@@ -332,7 +274,7 @@ mod unittest {
         )
         .unwrap();
 
-        let mut scraper = Mock::new();
+        let mut scraper = utils::test::mock::Scraper::new();
         let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
@@ -368,7 +310,7 @@ mod unittest {
     fn portfolio_with_capital_gain_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let mut scraper = Mock::new();
+        let mut scraper = utils::test::mock::Scraper::new();
         let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()
@@ -412,7 +354,7 @@ mod unittest {
         )
         .unwrap();
 
-        let mut scraper = Mock::new();
+        let mut scraper = utils::test::mock::Scraper::new();
         let result = Portfolio::from_orders(orders)
             .with_quotes(&mut scraper)
             .unwrap()

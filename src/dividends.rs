@@ -90,8 +90,8 @@ mod unittest {
         let expected = df! (
             "Year" => &["2024", "Total"],
             "May" => &[1.34, 1.34,],
-            "August" => &[1.92, 1.92,],
-            "September" => &[ 2.75, 2.75,],
+            "July" => &[1.92, 1.92,],
+            "August" => &[ 2.75, 2.75,],
             "Total" => &[6.01, 6.01],
         )
         .unwrap();

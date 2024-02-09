@@ -82,30 +82,8 @@ impl Summary {
     }
 
     pub fn collect(&mut self) -> Result<DataFrame> {
-        let column_order: Vec<_> = [
-            Columns::PrimaryCapital,
-            Columns::PortfolioCost,
-            Columns::MarketValue,
-            Columns::PaperProfit,
-            Columns::Dividends,
-            Columns::LiquidatedProfit,
-            Columns::NetProfit,
-            Columns::UninvestedCash,
-        ]
-        .iter()
-        .map(|x| col(x.into()))
-        .collect();
-
         Ok(self
-            .data
-            .clone()
-            .with_column(
-                (col(Columns::PaperProfit.into())
-                    + col(Columns::Dividends.into())
-                    + col(Columns::LiquidatedProfit.into()))
-                .alias(Columns::NetProfit.into()),
-            )
-            .select(&column_order)
+            .finish()
             .collect()?
             .transpose(Some(DESCRIPTION), None)?
             .lazy()
@@ -121,5 +99,32 @@ impl Summary {
             )
             .with_column(dtype_col(&DataType::Float64).round(2))
             .collect()?)
+    }
+
+    pub fn finish(&mut self) -> LazyFrame {
+        let column_order: Vec<_> = [
+            Columns::PrimaryCapital,
+            Columns::PortfolioCost,
+            Columns::MarketValue,
+            Columns::PaperProfit,
+            Columns::Dividends,
+            Columns::LiquidatedProfit,
+            Columns::NetProfit,
+            Columns::UninvestedCash,
+        ]
+        .iter()
+        .map(|x| col(x.into()))
+        .collect();
+
+        self.data
+            .clone()
+            .with_column(
+                (col(Columns::PaperProfit.into())
+                    + col(Columns::Dividends.into())
+                    + col(Columns::LiquidatedProfit.into()))
+                .alias(Columns::NetProfit.into()),
+            )
+            .select(&column_order)
+            .with_column(dtype_col(&DataType::Float64).round(2))
     }
 }

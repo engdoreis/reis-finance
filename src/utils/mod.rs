@@ -33,20 +33,88 @@ pub mod test {
         }
     }
 
+    pub mod mock {
+
+        use crate::schema::Columns;
+        use crate::schema::Country;
+        use crate::scraper::*;
+        use anyhow::Result;
+        use std::collections::HashMap;
+        pub struct Scraper {
+            ticker: String,
+            map: HashMap<String, f64>,
+        }
+
+        impl Scraper {
+            pub fn new() -> Self {
+                Scraper {
+                    ticker: "".into(),
+                    map: HashMap::from([("GOOGL".into(), 33.87), ("APPL".into(), 103.95)]),
+                }
+            }
+        }
+
+        impl IScraper for Scraper {
+            fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
+                self.ticker = ticker.into();
+                self
+            }
+
+            fn with_country(&mut self, _country: Country) -> &mut Self {
+                self
+            }
+
+            fn load(&mut self, _search_interval: SearchBy) -> Result<&Self> {
+                Ok(self)
+            }
+
+            fn quotes(&self) -> Result<Quotes> {
+                Ok(ElementSet {
+                    columns: (Columns::Date, Columns::Price),
+                    data: vec![Element {
+                        date: "2022-10-01".parse().unwrap(),
+                        number: *self.map.get(&self.ticker).unwrap(),
+                    }],
+                })
+            }
+
+            fn splits(&self) -> Result<Splits> {
+                Ok(ElementSet {
+                    columns: (Columns::Date, Columns::Price),
+                    data: vec![Element {
+                        date: "2022-10-01".parse().unwrap(),
+                        number: 2.0,
+                    }],
+                })
+            }
+
+            fn dividends(&self) -> Result<Dividends> {
+                Ok(ElementSet {
+                    columns: (Columns::Date, Columns::Price),
+                    data: vec![Element {
+                        date: "2022-10-01".parse().unwrap(),
+                        number: 2.5,
+                    }],
+                })
+            }
+        }
+    }
+
     pub fn generate_mocking_orders() -> DataFrame {
         let actions: &[&str] = &[
-            Buy, Dividend, Buy, Buy, Sell, Sell, Buy, Buy, Sell, Buy, Dividend, Dividend, Split,
+            Deposit, Buy, Dividend, Buy, Buy, Sell, Sell, Buy, Buy, Sell, Buy, Dividend, Dividend,
+            Split,
         ]
         .map(|x| x.into());
 
         let dates: Vec<String> = actions
             .iter()
             .enumerate()
-            .map(|(i, _)| format!("2024-{}-{}", 4 + i % 6, 15 + i % 14))
+            .map(|(i, _)| format!("2024-{}-{}", 3 + i % 7, 14 + i % 15))
             .collect();
 
         let country: Vec<&str> = vec![Usa.into(); actions.len()];
-        let mut tickers = vec!["GOOGL"; 6];
+        let mut tickers = vec!["GOOGL"; 7];
         tickers.extend(vec![
             "APPL", "GOOGL", "APPL", "APPL", "GOOGL", "APPL", "GOOGL",
         ]);
@@ -54,10 +122,10 @@ pub mod test {
         let orders = df! (
             Date.into() => dates,
             Action.into() => actions,
-            Qty.into() => [8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5, 1.0, 1.0, 0.5],
+            Qty.into() => [1.0,8.0, 1.0, 4.0, 10.0, 4.0, 8.0, 5.70, 10.0, 3.0, 10.5, 1.0, 1.0, 0.5],
             Ticker.into() => tickers,
             Country.into() => country,
-            Price.into() => &[34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60, 1.92, 2.75, 0.0],
+            Price.into() => &[1000.0,34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60, 1.92, 2.75, 0.0],
         )
         .unwrap();
 
