@@ -1,21 +1,25 @@
 use super::IBroker;
-use crate::schema::{self, Action, Columns, Type};
+use crate::schema::{self, Action, Columns, Currency, Type};
 use crate::utils;
 
 use anyhow::Result;
 use polars::prelude::*;
 use std::path::Path;
-pub struct Trading212 {}
+pub struct Trading212 {
+    currency: Currency,
+}
 
 impl Default for Trading212 {
     fn default() -> Self {
-        Self::new()
+        Trading212 {
+            currency: Currency::GBP,
+        }
     }
 }
 
 impl Trading212 {
-    pub fn new() -> Self {
-        Trading212 {}
+    pub fn new(currency: Currency) -> Self {
+        Trading212 { currency }
     }
 
     fn map_action(s: &str) -> Action {
@@ -97,6 +101,7 @@ impl IBroker for Trading212 {
             .with_columns([
                 //Create new columns
                 lit(Type::Stock.to_string()).alias(Columns::Type.into()),
+                lit(self.currency.as_str()).alias(Columns::Currency.into()),
             ])
             .with_column(
                 (col(Columns::Amount.into()) / col(Columns::Qty.into()))
@@ -121,7 +126,7 @@ mod unittest {
         let reference_output = Path::new("resources/tests/trading212_success.csv");
         let output = Path::new("target/trading212_result.csv");
 
-        let mut df = Trading212::new().load_from_csv(input_csv).unwrap();
+        let mut df = Trading212::default().load_from_csv(input_csv).unwrap();
 
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
@@ -144,7 +149,7 @@ mod unittest {
         let reference_output = Path::new("resources/tests/trading212_dir_success.csv");
         let output = Path::new("target/trading212_dir_result.csv");
 
-        let mut df = Trading212::new().load_from_dir(input_dir).unwrap();
+        let mut df = Trading212::default().load_from_dir(input_dir).unwrap();
 
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)

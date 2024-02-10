@@ -14,6 +14,7 @@ pub enum Columns {
     Tax,
     Commission,
     Country,
+    Currency,
     PortfolioCost,
     UninvestedCash,
     AveragePrice,
@@ -95,8 +96,31 @@ impl Country {
     }
 }
 
-// impl std::convert::From<&str> for Country {
-//     fn from(value: &str) -> Self {
-//         Country::from_isin(value)
-//     }
-// }
+#[derive(
+    Debug, Default, Clone, Copy, strum_macros::Display, strum::IntoStaticStr, strum::EnumString,
+)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum Currency {
+    #[default]
+    BRL,
+    EUR,
+    GBP,
+    GBX,
+    USD,
+}
+
+impl Currency {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::BRL => "R$",
+            Self::EUR => "€",
+            Self::GBP => "£",
+            Self::GBX => "£p",
+            Self::USD => "$",
+        }
+    }
+}

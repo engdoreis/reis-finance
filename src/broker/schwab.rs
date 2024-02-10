@@ -1,21 +1,25 @@
 use super::IBroker;
-use crate::schema::{self, Action, Columns, Country, Type};
+use crate::schema::{self, Action, Columns, Country, Currency, Type};
 use crate::utils;
 
 use anyhow::Result;
 use polars::prelude::*;
 use std::path::Path;
-pub struct Schwab {}
+pub struct Schwab {
+    currency: Currency,
+}
 
 impl Default for Schwab {
     fn default() -> Self {
-        Self::new()
+        Schwab {
+            currency: Currency::USD,
+        }
     }
 }
 
 impl Schwab {
-    pub fn new() -> Self {
-        Schwab {}
+    pub fn new(currency: Currency) -> Self {
+        Schwab { currency }
     }
 
     fn map_action(s: &str) -> Action {
@@ -113,11 +117,14 @@ impl IBroker for Schwab {
                     .fill_null(col(Columns::Amount.into()))
                     .alias(Columns::Price.into()),
             )
-            .with_column(col(Columns::Action.into()).str().replace(
-                lit(r".*Tax.*"),
-                lit(Action::Tax.as_str()),
-                false,
-            ));
+            .with_columns([
+                col(Columns::Action.into()).str().replace(
+                    lit(r".*Tax.*"),
+                    lit(Action::Tax.as_str()),
+                    false,
+                ),
+                lit(self.currency.as_str()).alias(Columns::Currency.into()),
+            ]);
 
         Ok(Self::sanitize(df).collect()?)
     }
@@ -137,7 +144,7 @@ mod unittest {
         let reference_output = Path::new("resources/tests/schwab_success.csv");
         let output = Path::new("target/Schwab_result.csv");
 
-        let mut df = Schwab::new().load_from_csv(input_csv).unwrap();
+        let mut df = Schwab::default().load_from_csv(input_csv).unwrap();
 
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)

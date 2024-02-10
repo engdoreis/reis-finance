@@ -19,10 +19,10 @@ fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_MAX_ROWS", "30"); // maximum number of rows shown when formatting DataFrames.
     std::env::set_var("POLARS_FMT_STR_LEN", "50"); // maximum number of characters printed per string value.
 
-    let broker = Schwab::new();
+    let broker = Schwab::default();
     let schwab = broker.load_from_dir(std::path::Path::new("/tmp/schwab"))?;
 
-    let broker = Trading212::new();
+    let broker = Trading212::default();
     let t212 = broker.load_from_dir(std::path::Path::new("/tmp/trading212"))?;
     execute(vec![t212 /*schwab*/])
 }
