@@ -37,6 +37,7 @@ pub mod test {
 
         use crate::schema::Columns;
         use crate::schema::Country;
+        use crate::schema::Currency;
         use crate::scraper::*;
         use anyhow::Result;
         use std::collections::HashMap;
@@ -61,6 +62,10 @@ pub mod test {
             }
 
             fn with_country(&mut self, _country: Country) -> &mut Self {
+                self
+            }
+
+            fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
                 self
             }
 
