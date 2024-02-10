@@ -6,11 +6,12 @@ use polars::prelude::*;
 
 use reis_finance_lib::broker::{IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
-use reis_finance_lib::liquidated;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::scraper::Yahoo;
 use reis_finance_lib::summary::Summary;
+use reis_finance_lib::timeline::{self, Timeline};
 use reis_finance_lib::uninvested;
+use reis_finance_lib::{liquidated, IntoLazyFrame};
 
 fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_TABLE_ROUNDED_CORNERS", "1"); // apply rounded corners to UTF8-styled tables.
@@ -19,27 +20,34 @@ fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_STR_LEN", "50"); // maximum number of characters printed per string value.
 
     let broker = Schwab::new();
-    let orders = broker.load_from_dir(std::path::Path::new("/tmp/schwab"))?;
-    execute(orders)?;
+    let schwab = broker.load_from_dir(std::path::Path::new("/tmp/schwab"))?;
 
     let broker = Trading212::new();
-    let orders = broker.load_from_dir(std::path::Path::new("/tmp/trading212"))?;
-    execute(orders)
+    let t212 = broker.load_from_dir(std::path::Path::new("/tmp/trading212"))?;
+    execute(vec![t212 /*schwab*/])
 }
 
-fn execute(orders: DataFrame) -> Result<()> {
-    // println!(
-    //     "{:?}",
-    //     orders
-    //         .clone()
-    //         .lazy()
-    //         .filter(col(reis_finance_lib::schema::Columns::Ticker.into()).eq(lit("BIL")))
-    //         .collect()?
-    // );
+fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
     let mut yahoo_scraper = Yahoo::new();
+    let mut df = LazyFrame::default();
+    for lf in orders {
+        df = concat([df, lf.into_lazy()], Default::default())?;
+    }
+    let orders = df
+        .sort("Date", Default::default())
+        .collect()
+        .unwrap()
+        .lazy();
+    dbg!(orders
+        .clone()
+        // .filter(col(reis_finance_lib::schema::Columns::Ticker.into()).eq(lit("BIL")))
+        .collect()
+        .unwrap());
 
-    let dividends = Dividends::from_orders(orders.clone()).by_ticker()?;
-    let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
+    let dividends = Dividends::from_orders(orders.clone()).by_ticker().unwrap();
+    let cash = uninvested::Cash::from_orders(orders.clone())
+        .collect()
+        .unwrap();
 
     let portfolio = Portfolio::from_orders(orders.clone())
         .with_quotes(&mut yahoo_scraper)?
@@ -67,5 +75,8 @@ fn execute(orders: DataFrame) -> Result<()> {
 
     let pivot = Dividends::from_orders(orders.clone()).pivot()?;
     dbg!(&pivot);
+
+    // let timeline = Timeline::from_orders(orders.clone()).summary(&mut yahoo_scraper, 45)?;
+    // dbg!(timeline);
     Ok(())
 }
