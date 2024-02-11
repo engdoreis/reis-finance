@@ -7,9 +7,9 @@ use polars::prelude::*;
 use reis_finance_lib::broker::{IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::portfolio::Portfolio;
+use reis_finance_lib::schema;
 use reis_finance_lib::scraper::Yahoo;
 use reis_finance_lib::summary::Summary;
-use reis_finance_lib::timeline::{self, Timeline};
 use reis_finance_lib::uninvested;
 use reis_finance_lib::{liquidated, IntoLazyFrame};
 
@@ -24,7 +24,10 @@ fn main() -> Result<()> {
 
     let broker = Trading212::default();
     let t212 = broker.load_from_dir(std::path::Path::new("/tmp/trading212"))?;
-    execute(vec![t212 /*schwab*/])
+    execute(vec![
+        t212,
+        // schwab,
+    ])
 }
 
 fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
@@ -38,11 +41,11 @@ fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
         .collect()
         .unwrap()
         .lazy();
-    dbg!(orders
-        .clone()
-        // .filter(col(reis_finance_lib::schema::Columns::Ticker.into()).eq(lit("BIL")))
-        .collect()
-        .unwrap());
+    // dbg!(orders
+    //     .clone()
+    //     // .filter(col(reis_finance_lib::schema::Columns::Ticker.into()).eq(lit("BIL")))
+    //     .collect()
+    //     .unwrap());
 
     let dividends = Dividends::from_orders(orders.clone()).by_ticker().unwrap();
     let cash = uninvested::Cash::from_orders(orders.clone())
@@ -53,6 +56,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
         .with_quotes(&mut yahoo_scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
+        .normalize_currency(&mut yahoo_scraper, schema::Currency::USD)?
         .paper_profit()
         .with_dividends(dividends.clone())
         .with_profit()
@@ -70,7 +74,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
 
     println!("{}", &portfolio);
 
-    dbg!(&profit);
+    // dbg!(&profit);
     dbg!(liquidated::Profit::from_orders(orders.clone())?.pivot()?);
 
     let pivot = Dividends::from_orders(orders.clone()).pivot()?;

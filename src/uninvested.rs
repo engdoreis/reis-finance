@@ -86,11 +86,16 @@ mod unittest {
             .lazy()
             .with_column(dtype_col(&DataType::Float64).round(2))
             .collect()
+            .unwrap()
+            .lazy()
+            .sort(schema::Columns::Currency.into(), SortOptions::default())
+            .collect()
             .unwrap();
+
         assert_eq!(
             df! (
-                Currency.into() => &[USD.as_str(), GBP.as_str()],
-                Amount.into() => &[9350.95, 15.43],
+                Currency.into() => &[GBP.as_str(), USD.as_str()],
+                Amount.into() => &[ 15.43, 9350.95,],
                 Ticker.into() => &[schema::Type::Cash.as_str();2],
             )
             .unwrap(),

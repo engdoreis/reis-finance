@@ -1,7 +1,7 @@
 use strum;
 use strum_macros;
 
-#[derive(Debug, strum::IntoStaticStr)]
+#[derive(Debug, Clone, Copy, strum::IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Columns {
     Date,
@@ -35,6 +35,7 @@ pub enum Columns {
 }
 
 impl Columns {
+    // TODO: Can be implemented using generics?
     pub fn as_str(self) -> &'static str {
         self.into()
     }
@@ -70,6 +71,13 @@ pub enum Type {
     Cash,
     Other,
 }
+
+impl Type {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+}
+
 #[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Country {
@@ -97,7 +105,14 @@ impl Country {
 }
 
 #[derive(
-    Debug, Default, Clone, Copy, strum_macros::Display, strum::IntoStaticStr, strum::EnumString,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    strum_macros::Display,
+    strum::IntoStaticStr,
+    strum::EnumString,
 )]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum Currency {

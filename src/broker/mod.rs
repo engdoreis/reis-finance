@@ -15,7 +15,7 @@ pub trait IBroker {
     fn load_from_csv(&self, file: &Path) -> Result<DataFrame>;
 
     fn load_from_dir(&self, dir: &Path) -> Result<DataFrame> {
-        let mut files = glob(dir.join("*.csv").as_os_str().to_str().unwrap())?;
+        let files = glob(dir.join("*.csv").as_os_str().to_str().unwrap())?;
         let mut frame = LazyFrame::default();
         for file in files {
             let new = self.load_from_csv(file?.as_path())?.lazy();

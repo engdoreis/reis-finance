@@ -1,5 +1,6 @@
 #[cfg(test)]
 pub mod test {
+    use crate::schema;
     use crate::schema::Action::*;
     use crate::schema::Columns::*;
     use crate::schema::Country::*;
@@ -35,9 +36,9 @@ pub mod test {
 
     pub mod mock {
 
+        use crate::schema;
         use crate::schema::Columns;
         use crate::schema::Country;
-        use crate::schema::Currency;
         use crate::scraper::*;
         use anyhow::Result;
         use std::collections::HashMap;
@@ -50,7 +51,14 @@ pub mod test {
             pub fn new() -> Self {
                 Scraper {
                     ticker: "".into(),
-                    map: HashMap::from([("GOOGL".into(), 33.87), ("APPL".into(), 103.95)]),
+                    map: HashMap::from([
+                        ("GOOGL".into(), 33.87),
+                        ("APPL".into(), 103.95),
+                        ("USD/GBP".into(), 0.87),
+                        ("GBP/USD".into(), 1.23),
+                        ("BRL/USD".into(), 0.21),
+                        ("BRL/GBP".into(), 0.18),
+                    ]),
                 }
             }
         }
@@ -65,7 +73,8 @@ pub mod test {
                 self
             }
 
-            fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
+            fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self {
+                self.ticker = format!("{}/{}", from, to);
                 self
             }
 
@@ -131,6 +140,7 @@ pub mod test {
             Ticker.into() => tickers,
             Country.into() => country,
             Price.into() => &[1000.0,34.45, 1.34, 32.5, 36.0, 35.4, 36.4, 107.48, 34.3, 134.6, 95.60, 1.92, 2.75, 0.0],
+            Currency.into() => vec![schema::Currency::USD; actions.len()].iter().map(|x|  x.as_str()).collect::<Vec<_>>(),
         )
         .unwrap();
 

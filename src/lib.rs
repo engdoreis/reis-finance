@@ -1,4 +1,5 @@
 pub mod broker;
+pub mod currency;
 pub mod dividends;
 pub mod liquidated;
 pub mod perpetual_inventory;

@@ -1,9 +1,11 @@
+use crate::currency;
 use crate::perpetual_inventory::AverageCost;
 use crate::schema;
 use crate::scraper::{self, IScraper};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
+use polars_lazy::dsl::dtype_col;
 use std::str::FromStr;
 
 use std::collections::HashMap;
@@ -31,9 +33,9 @@ impl Portfolio {
                     .sum()
                     .alias(schema::Columns::AccruedQty.into()),
                 col(schema::Columns::Country.into()).first(),
+                col(schema::Columns::Currency.into()).last(),
             ])
             .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
-            // .select([col("*").exclude([schema::Columns::AccruedQty.as_str()])])
             .sort(schema::Columns::Ticker.into(), SortOptions::default());
 
         Portfolio {
@@ -42,7 +44,7 @@ impl Portfolio {
         }
     }
 
-    pub fn with_quotes<T: IScraper>(mut self, scraper: &mut T) -> Result<Self> {
+    pub fn with_quotes(mut self, scraper: &mut impl IScraper) -> Result<Self> {
         let result = self.data.collect()?;
 
         let quotes = Self::quotes(scraper, &result)?;
@@ -114,18 +116,21 @@ impl Portfolio {
     }
 
     pub fn with_uninvested_cash(mut self, cash: DataFrame) -> Self {
+        let match_on: Vec<_> = [
+            schema::Columns::Ticker,
+            schema::Columns::Amount,
+            schema::Columns::Currency,
+        ]
+        .iter()
+        .map(|x| col(x.as_str()))
+        .collect();
+
         self.data = self
             .data
             .join(
                 cash.lazy(),
-                [
-                    col(schema::Columns::Ticker.into()),
-                    col(schema::Columns::Amount.into()),
-                ],
-                [
-                    col(schema::Columns::Ticker.into()),
-                    col(schema::Columns::Amount.into()),
-                ],
+                match_on.clone(),
+                match_on,
                 JoinArgs::new(JoinType::Outer { coalesce: true }),
             )
             .with_column(col(schema::Columns::AccruedQty.into()).fill_null(lit(1)))
@@ -137,6 +142,33 @@ impl Portfolio {
     pub fn with_allocation(mut self) -> Self {
         self.data = self.data.with_column(utils::polars::compute::allocation());
         self
+    }
+
+    pub fn normalize_currency(
+        mut self,
+        scraper: &mut impl IScraper,
+        currency: schema::Currency,
+    ) -> Result<Self> {
+        self.data = currency::normalize(
+            self.data.clone(),
+            &[dtype_col(&DataType::Float64).exclude([schema::Columns::AccruedQty.as_str()])],
+            currency,
+            scraper,
+        )?
+        .group_by([
+            schema::Columns::Ticker.as_str(),
+            schema::Columns::Currency.as_str(),
+        ])
+        .agg([
+            col(schema::Columns::Amount.as_str()).sum(),
+            col(schema::Columns::AccruedQty.as_str()).first(),
+            col(schema::Columns::MarketPrice.as_str()).first(),
+            (col(schema::Columns::AveragePrice.as_str())
+                * col(schema::Columns::AccruedQty.as_str()))
+            .sum()
+                / col(schema::Columns::AccruedQty.as_str()).sum(),
+        ]);
+        Ok(self)
     }
 
     pub fn collect(self) -> Result<DataFrame> {
@@ -184,7 +216,6 @@ impl Portfolio {
 mod unittest {
     use super::*;
     use crate::schema::Columns;
-    use crate::scraper::{self, Dividends, Element, ElementSet, Quotes, Splits};
     use crate::utils;
 
     #[test]
@@ -245,6 +276,42 @@ mod unittest {
             Columns::AccruedQty.into() => &[13.20, 10.0],
             Columns::MarketPrice.into() => &[103.95, 33.87],
             Columns::AveragePrice.into() => &[98.03, 69.10],
+        )
+        .unwrap();
+
+        // dbg!(&result);
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn portfolio_with_normalized_currency() {
+        let orders = utils::test::generate_mocking_orders();
+
+        let mut scraper = utils::test::mock::Scraper::new();
+        let result = Portfolio::from_orders(orders)
+            .with_quotes(&mut scraper)
+            .unwrap()
+            .with_average_price()
+            .unwrap()
+            .normalize_currency(&mut scraper, schema::Currency::GBP)
+            .unwrap()
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([
+                col(Columns::Ticker.into()),
+                dtype_col(&DataType::Float64).round(2),
+            ])
+            .sort(Columns::Ticker.into(), SortOptions::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            Columns::Ticker.into() => &["APPL", "GOOGL"],
+            Columns::Amount.into() => &[1125.78, 601.17],
+            Columns::AccruedQty.into() => &[13.20, 10.0],
+            Columns::MarketPrice.into() => &[90.44, 29.47],
+            Columns::AveragePrice.into() => &[85.29, 60.12],
         )
         .unwrap();
 

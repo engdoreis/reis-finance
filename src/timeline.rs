@@ -1,13 +1,12 @@
 use crate::dividends::Dividends;
+use crate::liquidated;
 use crate::portfolio::Portfolio;
+use crate::schema;
 use crate::schema::Columns;
-use crate::scraper::{self, IScraper};
+use crate::scraper::IScraper;
 use crate::summary::Summary;
 use crate::uninvested;
-use crate::{liquidated, summary};
-use crate::{portfolio, schema};
 use anyhow::Result;
-use chrono::NaiveDate;
 use polars::prelude::*;
 
 pub struct Timeline {
@@ -22,7 +21,7 @@ impl Timeline {
     }
 
     pub fn summary<T: IScraper>(
-        mut self,
+        self,
         scraper: &mut T,
         interval_days: usize,
         date: Option<&str>,
