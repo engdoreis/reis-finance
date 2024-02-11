@@ -48,19 +48,7 @@ impl Portfolio {
         let quotes = Self::quotes(scraper, &result)?;
 
         let result = result.lazy().with_column(
-            col(schema::Columns::Ticker.into())
-                .map(
-                    move |series| {
-                        Ok(Some(
-                            series
-                                .str()?
-                                .into_iter()
-                                .map(|row| quotes.get(row.expect("Can't get row")).unwrap())
-                                .collect(),
-                        ))
-                    },
-                    GetOutput::from_type(DataType::Float64),
-                )
+            utils::polars::map_column_str_to_f64(schema::Columns::Ticker.into(), quotes)
                 .alias(schema::Columns::MarketPrice.into()),
         );
         self.data = result;

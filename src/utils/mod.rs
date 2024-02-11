@@ -146,6 +146,7 @@ pub mod test {
 pub mod polars {
     use anyhow::Result;
     use polars::prelude::*;
+    use std::collections::HashMap;
 
     pub fn epoc_to_date(column: &str) -> Expr {
         (col(column) * lit(1000))
@@ -182,6 +183,24 @@ pub mod polars {
                 ))
             },
             GetOutput::from_type(DataType::String),
+        )
+    }
+
+    pub fn map_column_str_to_f64(name: &str, map: HashMap<String, f64>) -> Expr {
+        col(name).map(
+            move |series| {
+                Ok(Some(
+                    series
+                        .str()?
+                        .into_iter()
+                        .map(|row| {
+                            map.get(row.expect("Can't get row"))
+                                .expect("Map incomplete")
+                        })
+                        .collect(),
+                ))
+            },
+            GetOutput::from_type(DataType::Float64),
         )
     }
 
