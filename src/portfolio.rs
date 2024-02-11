@@ -171,6 +171,13 @@ impl Portfolio {
         Ok(self)
     }
 
+    pub fn round(mut self, decimals: u32) -> Self {
+        self.data = self
+            .data
+            .with_column(dtype_col(&DataType::Float64).round(decimals));
+        self
+    }
+
     pub fn collect(self) -> Result<DataFrame> {
         let exclude: &[&str] = &[schema::Columns::Country.into(), "^.*_right$"];
         Ok(self.data.select([col("*").exclude(exclude)]).collect()?)

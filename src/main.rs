@@ -24,10 +24,7 @@ fn main() -> Result<()> {
 
     let broker = Trading212::default();
     let t212 = broker.load_from_dir(std::path::Path::new("/tmp/trading212"))?;
-    execute(vec![
-        t212,
-        // schwab,
-    ])
+    execute(vec![t212, schwab])
 }
 
 fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
@@ -56,11 +53,12 @@ fn execute(orders: Vec<impl IntoLazyFrame>) -> Result<()> {
         .with_quotes(&mut yahoo_scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
-        .normalize_currency(&mut yahoo_scraper, schema::Currency::USD)?
+        .normalize_currency(&mut yahoo_scraper, schema::Currency::GBP)?
         .paper_profit()
         .with_dividends(dividends.clone())
         .with_profit()
         .with_allocation()
+        .round(2)
         .collect()?;
 
     let profit = liquidated::Profit::from_orders(orders.clone())?.collect()?;
