@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.78"
 chrono = "0.4.31"
+clap = { version = "4.5.0", features = ["derive"] }
 derive_more = "0.99.17"
 either = "1.9.0"
 glob = "0.3.1"
