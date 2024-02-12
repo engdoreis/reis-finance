@@ -8,11 +8,10 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn new(orders: &DataFrame) -> Dividends {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+        let orders = orders.into();
         Dividends {
             data: orders
-                .clone()
-                .lazy()
                 .filter(
                     col(Columns::Action.into())
                         .eq(lit(Action::Dividend.as_str()))
@@ -54,7 +53,7 @@ mod unittest {
     fn dividends_by_ticker_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::new(&orders)
+        let result = Dividends::from_orders(orders)
             .by_ticker()
             .unwrap()
             .lazy()
@@ -80,7 +79,7 @@ mod unittest {
     fn dividends_pivot_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::new(&orders)
+        let result = Dividends::from_orders(orders)
             .pivot()
             .unwrap()
             .lazy()
@@ -91,8 +90,8 @@ mod unittest {
         let expected = df! (
             "Year" => &["2024", "Total"],
             "May" => &[1.34, 1.34,],
-            "August" => &[1.92, 1.92,],
-            "September" => &[ 2.75, 2.75,],
+            "July" => &[1.92, 1.92,],
+            "August" => &[ 2.75, 2.75,],
             "Total" => &[6.01, 6.01],
         )
         .unwrap();

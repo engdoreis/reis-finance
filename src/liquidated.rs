@@ -9,12 +9,13 @@ pub struct Profit {
 }
 
 impl Profit {
-    pub fn new(orders: &DataFrame) -> Result<Self> {
-        let avg = AverageCost::new(&orders).with_cumulative().collect()?;
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Result<Self> {
+        let orders: LazyFrame = orders.into();
+        let avg = AverageCost::from_orders(orders.clone())
+            .with_cumulative()
+            .collect()?;
 
         let data = orders
-            .clone()
-            .lazy()
             .filter(utils::polars::filter::buy_or_sell())
             .select([
                 col(schema::Columns::Date.into()),
@@ -54,7 +55,7 @@ impl Profit {
                 col(schema::Columns::Profit.into()),
             ]);
 
-        Ok(Profit { data: data })
+        Ok(Profit { data })
     }
 
     pub fn pivot(&self) -> Result<DataFrame> {
@@ -83,7 +84,7 @@ mod unittest {
     fn realized_profit_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Profit::new(&orders)
+        let result = Profit::from_orders(orders)
             .unwrap()
             .collect()
             .unwrap()
@@ -94,7 +95,7 @@ mod unittest {
             .unwrap();
 
         let expected = df! (
-            Columns::Date.into() => &[ "2024-06-23", "2024-08-19", "2024-09-20"],
+            Columns::Date.into() => &[ "2024-05-23", "2024-08-19", "2024-09-20"],
             Columns::Ticker.into() => &["APPL", "GOOGL", "GOOGL"],
             Columns::Qty.into() => &[ 3.0, 4.0, 8.0],
             Columns::Price.into() => &[134.6, 35.4, 36.4],

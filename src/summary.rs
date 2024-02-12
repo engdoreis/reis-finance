@@ -1,7 +1,6 @@
-use crate::perpetual_inventory::AverageCost;
+use crate::schema;
 use crate::schema::Columns;
 use crate::utils;
-use crate::{portfolio, schema};
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -12,9 +11,9 @@ pub struct Summary {
 }
 
 impl Summary {
-    pub fn new(portfolio: &DataFrame) -> Result<Self> {
+    pub fn from_portfolio(portfolio: impl crate::IntoLazyFrame) -> Result<Self> {
         Ok(Summary {
-            data: portfolio.clone().lazy().select([
+            data: portfolio.into().select([
                 (col(Columns::AveragePrice.into()) * col(Columns::AccruedQty.into()))
                     .sum()
                     .alias(Columns::PortfolioCost.into()),
@@ -31,12 +30,14 @@ impl Summary {
         })
     }
 
-    pub fn with_liquidated_profit(&mut self, profit: &DataFrame) -> Result<&mut Self> {
+    pub fn with_liquidated_profit(
+        &mut self,
+        profit: impl crate::IntoLazyFrame,
+    ) -> Result<&mut Self> {
         self.data = polars::functions::concat_df_horizontal(&[
             self.data.clone().collect()?,
             profit
-                .clone()
-                .lazy()
+                .into()
                 .select([col(Columns::Profit.into())
                     .sum()
                     .alias(Columns::LiquidatedProfit.into())])
@@ -46,12 +47,11 @@ impl Summary {
         Ok(self)
     }
 
-    pub fn with_dividends(&mut self, dividends: &DataFrame) -> Result<&mut Self> {
+    pub fn with_dividends(&mut self, dividends: impl crate::IntoLazyFrame) -> Result<&mut Self> {
         self.data = polars::functions::concat_df_horizontal(&[
             self.data.clone().collect()?,
             dividends
-                .clone()
-                .lazy()
+                .into()
                 .select([col(Columns::Dividends.into()).sum()])
                 .collect()?,
         ])?
@@ -59,10 +59,12 @@ impl Summary {
         Ok(self)
     }
 
-    pub fn with_capital_invested(&mut self, orders: &DataFrame) -> Result<&mut Self> {
+    pub fn with_capital_invested(
+        &mut self,
+        orders: impl crate::IntoLazyFrame,
+    ) -> Result<&mut Self> {
         let captal_invested = orders
-            .clone()
-            .lazy()
+            .into()
             .filter(utils::polars::filter::deposit_and_withdraw())
             .with_column(utils::polars::compute::negative_amount_on_withdraw())
             .select([col(Columns::Amount.into())
@@ -80,30 +82,8 @@ impl Summary {
     }
 
     pub fn collect(&mut self) -> Result<DataFrame> {
-        let column_order: Vec<_> = [
-            Columns::PrimaryCapital,
-            Columns::PortfolioCost,
-            Columns::MarketValue,
-            Columns::PaperProfit,
-            Columns::Dividends,
-            Columns::LiquidatedProfit,
-            Columns::NetProfit,
-            Columns::UninvestedCash,
-        ]
-        .iter()
-        .map(|x| col(x.into()))
-        .collect();
-
         Ok(self
-            .data
-            .clone()
-            .with_column(
-                (col(Columns::PaperProfit.into())
-                    + col(Columns::Dividends.into())
-                    + col(Columns::LiquidatedProfit.into()))
-                .alias(Columns::NetProfit.into()),
-            )
-            .select(&column_order)
+            .finish()
             .collect()?
             .transpose(Some(DESCRIPTION), None)?
             .lazy()
@@ -119,5 +99,32 @@ impl Summary {
             )
             .with_column(dtype_col(&DataType::Float64).round(2))
             .collect()?)
+    }
+
+    pub fn finish(&mut self) -> LazyFrame {
+        let column_order: Vec<_> = [
+            Columns::PrimaryCapital,
+            Columns::PortfolioCost,
+            Columns::MarketValue,
+            Columns::PaperProfit,
+            Columns::Dividends,
+            Columns::LiquidatedProfit,
+            Columns::NetProfit,
+            Columns::UninvestedCash,
+        ]
+        .iter()
+        .map(|x| col(x.into()))
+        .collect();
+
+        self.data
+            .clone()
+            .with_column(
+                (col(Columns::PaperProfit.into())
+                    + col(Columns::Dividends.into())
+                    + col(Columns::LiquidatedProfit.into()))
+                .alias(Columns::NetProfit.into()),
+            )
+            .select(&column_order)
+            .with_column(dtype_col(&DataType::Float64).round(2))
     }
 }

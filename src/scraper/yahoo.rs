@@ -1,4 +1,5 @@
 use crate::schema::Columns;
+use crate::schema::Currency;
 use anyhow::{anyhow, Result};
 
 use chrono::{self, TimeZone};
@@ -39,6 +40,11 @@ impl Yahoo {
 impl IScraper for Yahoo {
     fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
         self.ticker = ticker.into();
+        self
+    }
+
+    fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
+        self.ticker = format!("{}{}=x", from.as_str(), to.as_str(),);
         self
     }
 
@@ -253,8 +259,8 @@ mod unittest {
             .with_ticker("TSCO")
             .with_country(schema::Country::Uk)
             .load(SearchBy::TimeRange {
-                start: "2023-01-05".parse().unwrap(),
-                end: "2023-01-06".parse().unwrap(),
+                start: "2024-02-05".parse().unwrap(),
+                end: "2024-02-06".parse().unwrap(),
                 interval: Interval::Day(1),
             })
             .unwrap()
@@ -264,8 +270,8 @@ mod unittest {
         assert_eq!(
             data.first().unwrap(),
             &Element {
-                date: "2023-01-05".parse().unwrap(),
-                number: 2.3850000000000002,
+                date: "2024-02-05".parse().unwrap(),
+                number: 2.8979998779296876,
             }
         )
     }
@@ -291,5 +297,47 @@ mod unittest {
                 number: 37.47999954223633,
             }
         )
+    }
+
+    fn currency_quotes(from: Currency, to: Currency, expected: f64) {
+        let mut yh = Yahoo::new();
+        let data = yh
+            .with_currency(from, to)
+            .load(SearchBy::TimeRange {
+                start: "2024-02-08".parse().unwrap(),
+                end: "2024-02-09".parse().unwrap(),
+                interval: Interval::Day(1),
+            })
+            .unwrap()
+            .quotes()
+            .unwrap();
+
+        assert_eq!(
+            data.first().unwrap(),
+            &Element {
+                date: "2024-02-08".parse().unwrap(),
+                number: expected,
+            }
+        )
+    }
+
+    #[test]
+    fn currency_gbp_usd() {
+        currency_quotes(Currency::GBP, Currency::USD, 1.2627378702163696);
+    }
+
+    #[test]
+    fn currency_usd_gbp() {
+        currency_quotes(Currency::USD, Currency::GBP, 0.7919300198554993);
+    }
+
+    #[test]
+    fn currency_usd_brl() {
+        currency_quotes(Currency::USD, Currency::BRL, 4.969299793243408);
+    }
+
+    #[test]
+    fn currency_usd_eur() {
+        currency_quotes(Currency::USD, Currency::EUR, 0.9280099868774414);
     }
 }

@@ -7,21 +7,23 @@ pub struct Cash {
 }
 
 impl Cash {
-    pub fn new(orders: DataFrame) -> Self {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+        let orders: LazyFrame = orders.into();
         Self {
             data: orders
-                .lazy()
                 .filter(
                     col(schema::Columns::Action.into()).neq(lit(schema::Action::Ignore.as_str())),
                 )
                 .select([
+                    col(schema::Columns::Currency.into()),
                     //Make the Amount negative when selling.
                     when(col(schema::Columns::Action.into()).str().contains(
                         lit(format!(
-                            "{}|{}|{}",
+                            "{}|{}|{}|{}",
                             schema::Action::Buy.as_str(),
                             schema::Action::Withdraw.as_str(),
                             schema::Action::Tax.as_str(),
+                            schema::Action::Fee.as_str(),
                         )),
                         false,
                     ))
@@ -35,10 +37,9 @@ impl Cash {
     pub fn collect(self) -> Result<DataFrame> {
         Ok(self
             .data
-            .select([col(schema::Columns::Amount.into()).sum()])
-            .with_column(
-                lit::<&str>(schema::Type::Cash.into()).alias(schema::Columns::Ticker.into()),
-            )
+            .group_by([schema::Columns::Currency.as_str()])
+            .agg([col(schema::Columns::Amount.into()).sum()])
+            .with_column(lit(schema::Type::Cash.as_str()).alias(schema::Columns::Ticker.into()))
             .collect()?)
     }
 }
@@ -46,39 +47,56 @@ impl Cash {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Action::*;
+    use crate::schema::Action::{self, *};
     use crate::schema::Columns::*;
+    use crate::schema::Currency::*;
 
     #[test]
     fn uninvested_cash_success() {
         let actions: &[&str] = &[
-            Deposit.into(),
-            Buy.into(),
-            Buy.into(),
-            Sell.into(),
-            Dividend.into(),
-            Withdraw.into(),
-        ];
+            Deposit,
+            Deposit,
+            Buy,
+            Buy,
+            Sell,
+            Dividend,
+            Withdraw,
+            Action::Tax,
+            Fee,
+        ]
+        .map(|x| x.into());
+
+        let currency: Vec<_> = actions
+            .iter()
+            .enumerate()
+            .map(|(i, _)| if i % 2 == 0 { USD } else { GBP }.as_str())
+            .collect();
+
         let orders = df! (
             Action.into() => actions,
-            Ticker.into() => &["CASH", "GOOGL", "GOOGL", "GOOGL", "GOOGL", "CASH"],
-            Amount.into() => &[10335.1, 4397.45, 2094.56, 3564.86, 76.87, 150.00],
+            Ticker.into() => &["CASH", "CASH", "GOOGL", "GOOGL", "GOOGL", "GOOGL", "CASH", "CASH", "CASH"],
+            Amount.into() => &[10335.1,2037.1, 4397.45, 2094.56, 3564.86, 76.87, 150.00, 3.98, 1.56],
+            Currency.into() => currency,
         )
         .unwrap();
 
-        let cash_type: &str = schema::Type::Cash.into();
-
-        let cash = Cash::new(orders)
+        let cash = Cash::from_orders(orders)
             .collect()
             .unwrap()
             .lazy()
-            .select([col(Ticker.into()), dtype_col(&DataType::Float64).round(4)])
+            .with_column(dtype_col(&DataType::Float64).round(2))
+            .collect()
+            .unwrap()
+            .lazy()
+            .sort(schema::Columns::Currency.into(), SortOptions::default())
             .collect()
             .unwrap();
+
         assert_eq!(
             df! (
-                Ticker.into() => &[cash_type],
-                Amount.into() => &[7334.82],
+                Currency.into() => &[GBP.as_str(), USD.as_str()],
+                Amount.into() => &[ 15.43, 9350.95,],
+                Ticker.into() => &[schema::Type::Cash.as_str();2],
             )
             .unwrap(),
             cash

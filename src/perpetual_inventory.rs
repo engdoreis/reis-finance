@@ -10,9 +10,9 @@ pub struct AverageCost {
 }
 
 impl AverageCost {
-    pub fn new(orders: &DataFrame) -> Self {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
         Self {
-            data: orders.clone().lazy(),
+            data: orders.into(),
         }
     }
     /// The Perpetual inventory average cost can be computed by the formula:
@@ -117,7 +117,7 @@ mod unittest {
     fn average_cost_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = AverageCost::new(&orders)
+        let result = AverageCost::from_orders(orders)
             .with_cumulative()
             .collect_latest()
             // .collect()

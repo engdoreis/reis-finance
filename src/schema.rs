@@ -1,7 +1,7 @@
 use strum;
 use strum_macros;
 
-#[derive(Debug, strum::IntoStaticStr)]
+#[derive(Debug, Clone, Copy, strum::IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Columns {
     Date,
@@ -14,6 +14,7 @@ pub enum Columns {
     Tax,
     Commission,
     Country,
+    Currency,
     PortfolioCost,
     UninvestedCash,
     AveragePrice,
@@ -34,6 +35,7 @@ pub enum Columns {
 }
 
 impl Columns {
+    // TODO: Can be implemented using generics?
     pub fn as_str(self) -> &'static str {
         self.into()
     }
@@ -69,6 +71,13 @@ pub enum Type {
     Cash,
     Other,
 }
+
+impl Type {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+}
+
 #[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Country {
@@ -95,8 +104,38 @@ impl Country {
     }
 }
 
-// impl std::convert::From<&str> for Country {
-//     fn from(value: &str) -> Self {
-//         Country::from_isin(value)
-//     }
-// }
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    strum_macros::Display,
+    strum::IntoStaticStr,
+    strum::EnumString,
+)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum Currency {
+    #[default]
+    BRL,
+    EUR,
+    GBP,
+    GBX,
+    USD,
+}
+
+impl Currency {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::BRL => "R$",
+            Self::EUR => "€",
+            Self::GBP => "£",
+            Self::GBX => "£p",
+            Self::USD => "$",
+        }
+    }
+}
