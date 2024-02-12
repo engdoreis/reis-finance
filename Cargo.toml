@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "reis_finance_lib"
-path = "src/lib.rs"
+path = "src/lib/lib.rs"
 
 [[bin]]
 name = "reis_finance_cli"

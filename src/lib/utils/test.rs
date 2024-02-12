@@ -77,7 +77,7 @@
                 self
             }
 
-            fn load(&mut self, _search_interval: SearchBy) -> Result<&Self> {
+            fn load_blocking(&mut self, _search_interval: SearchBy) -> Result<&Self> {
                 Ok(self)
             }
 

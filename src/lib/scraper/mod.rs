@@ -12,7 +12,7 @@ pub trait IScraper {
     fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self;
     fn with_country(&mut self, contry: schema::Country) -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load(&mut self, search_interval: SearchBy) -> Result<&Self>;
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<&Self>;
     fn quotes(&self) -> Result<Quotes>;
     fn splits(&self) -> Result<Splits>;
     fn dividends(&self) -> Result<Dividends>;

@@ -33,7 +33,7 @@ pub fn normalize(
 
             if let Ok(scraper) = scraper
                 .with_currency(current_currency, currency)
-                .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
+                .load_blocking(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
             {
                 (
                     current_currency.to_string(),

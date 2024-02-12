@@ -200,7 +200,7 @@ impl Portfolio {
                 if let Ok(scraper) = scraper
                     .with_ticker(ticker)
                     .with_country(schema::Country::from_str(country).unwrap())
-                    .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
+                    .load_blocking(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
                 {
                     (
                         ticker.to_owned(),
