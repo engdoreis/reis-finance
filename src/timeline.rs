@@ -2,7 +2,7 @@ use crate::dividends::Dividends;
 use crate::liquidated;
 use crate::portfolio::Portfolio;
 use crate::schema;
-use crate::schema::Columns;
+use crate::schema::Column;
 use crate::scraper::IScraper;
 use crate::summary::Summary;
 use crate::uninvested;
@@ -38,11 +38,11 @@ impl Timeline {
             let orders = self
                 .orders
                 .clone()
-                .filter(col(Columns::Date.as_str()).lt(lit(date)));
+                .filter(col(Column::Date.as_str()).lt(lit(date)));
 
             if orders
                 .clone()
-                .filter(col(schema::Columns::Action.as_str()).eq(lit(schema::Action::Buy.as_str())))
+                .filter(col(schema::Column::Action.as_str()).eq(lit(schema::Action::Buy.as_str())))
                 .collect()?
                 .shape()
                 .0
@@ -78,7 +78,7 @@ impl Timeline {
                     summary.with_column(
                         lit(date)
                             .cast(DataType::Date)
-                            .alias(schema::Columns::Date.as_str()),
+                            .alias(schema::Column::Date.as_str()),
                     ),
                 ],
                 Default::default(),
@@ -87,7 +87,7 @@ impl Timeline {
         }
 
         Ok(result
-            .sort(schema::Columns::Date.as_str(), Default::default())
+            .sort(schema::Column::Date.as_str(), Default::default())
             .collect()?)
     }
 }
@@ -95,7 +95,7 @@ impl Timeline {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Columns;
+    use crate::schema::Column;
     use crate::utils;
     use std::fs::File;
     use std::path::Path;
@@ -110,7 +110,7 @@ mod unittest {
             .unwrap()
             .lazy()
             .with_column(dtype_col(&DataType::Float64).round(4))
-            .sort(Columns::Date.into(), SortOptions::default())
+            .sort(Column::Date.into(), SortOptions::default())
             .collect()
             .unwrap();
 

@@ -1,4 +1,4 @@
-use crate::schema::Columns;
+use crate::schema::Column;
 use crate::schema::Currency;
 use anyhow::{anyhow, Result};
 
@@ -99,7 +99,7 @@ impl IScraper for Yahoo {
 
         let quotes = response.quotes()?;
         Ok(ElementSet {
-            columns: (Columns::Date, Columns::Price),
+            columns: (Column::Date, Column::Price),
             data: quotes
                 .iter()
                 .map(|quote| Element {
@@ -118,7 +118,7 @@ impl IScraper for Yahoo {
 
         let quotes = response.splits()?;
         Ok(ElementSet {
-            columns: (Columns::Date, Columns::Qty),
+            columns: (Column::Date, Column::Qty),
             data: quotes
                 .iter()
                 .map(|split| Element {
@@ -138,7 +138,7 @@ impl IScraper for Yahoo {
         let quotes = response.dividends()?;
 
         Ok(ElementSet {
-            columns: (Columns::Date, Columns::Price),
+            columns: (Column::Date, Column::Price),
             data: quotes
                 .iter()
                 .map(|div| Element {

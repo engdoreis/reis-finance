@@ -2,7 +2,7 @@
 pub mod test {
     use crate::schema;
     use crate::schema::Action::*;
-    use crate::schema::Columns::*;
+    use crate::schema::Column::*;
     use crate::schema::Country::*;
     use polars::prelude::*;
     pub mod fs {
@@ -37,7 +37,7 @@ pub mod test {
     pub mod mock {
 
         use crate::schema;
-        use crate::schema::Columns;
+        use crate::schema::Column;
         use crate::schema::Country;
         use crate::scraper::*;
         use anyhow::Result;
@@ -84,7 +84,7 @@ pub mod test {
 
             fn quotes(&self) -> Result<Quotes> {
                 Ok(ElementSet {
-                    columns: (Columns::Date, Columns::Price),
+                    columns: (Column::Date, Column::Price),
                     data: vec![Element {
                         date: "2022-10-01".parse().unwrap(),
                         number: *self.map.get(&self.ticker).unwrap(),
@@ -94,7 +94,7 @@ pub mod test {
 
             fn splits(&self) -> Result<Splits> {
                 Ok(ElementSet {
-                    columns: (Columns::Date, Columns::Price),
+                    columns: (Column::Date, Column::Price),
                     data: vec![Element {
                         date: "2022-10-01".parse().unwrap(),
                         number: 2.0,
@@ -104,7 +104,7 @@ pub mod test {
 
             fn dividends(&self) -> Result<Dividends> {
                 Ok(ElementSet {
-                    columns: (Columns::Date, Columns::Price),
+                    columns: (Column::Date, Column::Price),
                     data: vec![Element {
                         date: "2022-10-01".parse().unwrap(),
                         number: 2.5,
@@ -228,7 +228,7 @@ pub mod polars {
     }
 
     pub mod compute {
-        use crate::schema::{Action, Columns::*};
+        use crate::schema::{Action, Column::*};
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
 
@@ -297,7 +297,7 @@ pub mod polars {
     }
 
     pub mod filter {
-        use crate::schema::{Action::*, Columns::*};
+        use crate::schema::{Action::*, Column::*};
         use polars::prelude::*;
         use polars_lazy::dsl::Expr;
 
@@ -329,7 +329,7 @@ pub mod polars {
     }
 
     pub mod transform {
-        use crate::schema::Columns;
+        use crate::schema::Column;
         use anyhow::Result;
         use polars::prelude::*;
         use polars_lazy::dsl::dtype_col;
@@ -339,8 +339,8 @@ pub mod polars {
             let result = data
                 .clone()
                 .with_columns([
-                    col(Columns::Date.into()).dt().year().alias("Year"),
-                    col(Columns::Date.into()).dt().month().alias("Month"),
+                    col(Column::Date.into()).dt().year().alias("Year"),
+                    col(Column::Date.into()).dt().month().alias("Month"),
                 ])
                 .collect()?;
 
@@ -381,7 +381,7 @@ pub mod polars {
                     |acc, x| Ok(Some(acc + x)),
                     [dtype_col(&DataType::Float64)],
                 )
-                .alias(Columns::Total.into()),
+                .alias(Column::Total.into()),
             );
 
             Ok(concat(

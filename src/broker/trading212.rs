@@ -1,5 +1,5 @@
 use super::IBroker;
-use crate::schema::{self, Action, Columns, Currency, Type};
+use crate::schema::{self, Action, Column, Currency, Type};
 use crate::utils;
 
 use anyhow::Result;
@@ -60,25 +60,25 @@ impl IBroker for Trading212 {
         let out = lazy_df
             .select([
                 // Rename columns to the standard data schema.
-                utils::polars::str_to_date("Time").alias(Columns::Date.into()),
+                utils::polars::str_to_date("Time").alias(Column::Date.into()),
                 utils::polars::map_str_column("Action", |row| {
                     Self::map_action(row.unwrap_or("Unknown")).into()
                 })
-                .alias(Columns::Action.into()),
+                .alias(Column::Action.into()),
                 col("Ticker")
                     .fill_null(lit("CASH"))
-                    .alias(Columns::Ticker.into()),
+                    .alias(Column::Ticker.into()),
                 col("No. of shares")
                     .cast(DataType::Float64)
                     .fill_null(lit(1))
-                    .alias(Columns::Qty.into()),
+                    .alias(Column::Qty.into()),
                 col("Price / share")
                     .fill_null(col("Total"))
                     .cast(DataType::Float64)
-                    .alias(Columns::Price.into()),
+                    .alias(Column::Price.into()),
                 col("Total")
                     .cast(DataType::Float64)
-                    .alias(Columns::Amount.into()),
+                    .alias(Column::Amount.into()),
                 // Compute the tax paid.
                 (col("Withholding tax")
                     .cast(DataType::Float64)
@@ -86,26 +86,25 @@ impl IBroker for Trading212 {
                     + col("Stamp duty reserve tax")
                         .cast(DataType::Float64)
                         .fill_null(lit(0)))
-                .alias(Columns::Tax.into()),
+                .alias(Column::Tax.into()),
                 // Compute the fees paid.
                 col("Currency conversion fee")
                     .fill_null(lit(0))
                     .cast(DataType::Float64)
-                    .alias(Columns::Commission.into()),
+                    .alias(Column::Commission.into()),
                 // Define the country where the ticker is hold.
                 utils::polars::map_str_column("ISIN", |isin| {
                     schema::Country::from_isin(isin.unwrap_or("Default")).into()
                 })
-                .alias(Columns::Country.into()),
+                .alias(Column::Country.into()),
             ])
             .with_columns([
                 //Create new columns
-                lit(Type::Stock.to_string()).alias(Columns::Type.into()),
-                lit(self.currency.as_str()).alias(Columns::Currency.into()),
+                lit(Type::Stock.to_string()).alias(Column::Type.into()),
+                lit(self.currency.as_str()).alias(Column::Currency.into()),
             ])
             .with_column(
-                (col(Columns::Amount.into()) / col(Columns::Qty.into()))
-                    .alias(Columns::Price.into()),
+                (col(Column::Amount.into()) / col(Column::Qty.into())).alias(Column::Price.into()),
             );
 
         Ok(Self::sanitize(out).collect()?)

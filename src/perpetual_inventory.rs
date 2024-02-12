@@ -24,9 +24,9 @@ impl AverageCost {
             .with_column(
                 // Use struct type to operate over two columns.
                 as_struct(vec![
-                    col(schema::Columns::Price.into()),
-                    col(schema::Columns::Qty.into()),
-                    col(schema::Columns::Action.into()),
+                    col(schema::Column::Price.into()),
+                    col(schema::Column::Qty.into()),
+                    col(schema::Column::Action.into()),
                 ])
                 // Apply function on group by Ticker.
                 .apply(
@@ -69,8 +69,8 @@ impl AverageCost {
                         // Maybe there's a batter way to construct a series of struct from map?
                         Ok(Some(
                             df!(
-                                schema::Columns::AveragePrice.into() => avg.as_slice(),
-                                schema::Columns::AccruedQty.into() => cum_qty.as_slice(),
+                                schema::Column::AveragePrice.into() => avg.as_slice(),
+                                schema::Column::AccruedQty.into() => cum_qty.as_slice(),
                             )?
                             .into_struct("")
                             .into_series(),
@@ -81,7 +81,7 @@ impl AverageCost {
                         dtype: DataType::Float64,
                     }])),
                 )
-                .over([col(schema::Columns::Ticker.into())])
+                .over([col(schema::Column::Ticker.into())])
                 .alias("struct"),
             )
             // Break the struct column into separated columns.
@@ -98,10 +98,10 @@ impl AverageCost {
             .data
             .collect()?
             .lazy()
-            .group_by([col(schema::Columns::Ticker.into())])
+            .group_by([col(schema::Column::Ticker.into())])
             .agg([
-                col(schema::Columns::AveragePrice.into()).last(),
-                col(schema::Columns::AccruedQty.into()).last(),
+                col(schema::Column::AveragePrice.into()).last(),
+                col(schema::Column::AccruedQty.into()).last(),
             ])
             .collect()?)
     }
@@ -110,7 +110,7 @@ impl AverageCost {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Columns;
+    use crate::schema::Column;
     use crate::utils;
 
     #[test]
@@ -124,20 +124,20 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::AveragePrice.into() => &[98.03, 69.10],
-            Columns::AccruedQty.into() => &[13.20, 10.0],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::AveragePrice.into() => &[98.03, 69.10],
+            Column::AccruedQty.into() => &[13.20, 10.0],
         )
         .unwrap()
-        .sort(&[Columns::Ticker.as_str()], false, false)
+        .sort(&[Column::Ticker.as_str()], false, false)
         .unwrap();
 
         // dbg!(&result);

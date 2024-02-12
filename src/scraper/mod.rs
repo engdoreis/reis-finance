@@ -30,7 +30,7 @@ pub struct Element {
 
 #[derive(Debug)]
 pub struct ElementSet {
-    pub columns: (schema::Columns, schema::Columns),
+    pub columns: (schema::Column, schema::Column),
     pub data: Vec<Element>,
 }
 

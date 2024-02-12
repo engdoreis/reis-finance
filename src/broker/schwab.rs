@@ -1,5 +1,5 @@
 use super::IBroker;
-use crate::schema::{self, Action, Columns, Country, Currency, Type};
+use crate::schema::{self, Action, Column, Country, Currency, Type};
 use crate::utils;
 
 use anyhow::Result;
@@ -68,7 +68,7 @@ impl IBroker for Schwab {
                     .alias("Symbol"),
             )
             .select([
-                col(Columns::Date.into())
+                col(Column::Date.into())
                     .str()
                     .to_datetime(
                         None,
@@ -83,7 +83,7 @@ impl IBroker for Schwab {
                 utils::polars::map_str_column("Action", |row| {
                     Self::map_action(row.unwrap_or("Unknown")).into()
                 })
-                .alias(Columns::Action.into()),
+                .alias(Column::Action.into()),
                 when(col("Symbol").eq(lit("")))
                     .then(
                         when(col("Description").str().contains(lit(r"\(.+\)"), false))
@@ -91,39 +91,39 @@ impl IBroker for Schwab {
                             .otherwise(lit("CASH")),
                     )
                     .otherwise(col("Symbol"))
-                    .alias(Columns::Ticker.into()),
+                    .alias(Column::Ticker.into()),
                 col("Quantity")
                     .cast(DataType::Float64)
                     .fill_null(lit(1))
-                    .alias(Columns::Qty.into()),
-                Schwab::cast_cash_to_float("Amount").alias(Columns::Amount.into()),
-                lit(0.0).alias(Columns::Tax.into()),
-                Schwab::cast_cash_to_float("Price").alias(Columns::Price.into()),
+                    .alias(Column::Qty.into()),
+                Schwab::cast_cash_to_float("Amount").alias(Column::Amount.into()),
+                lit(0.0).alias(Column::Tax.into()),
+                Schwab::cast_cash_to_float("Price").alias(Column::Price.into()),
                 Schwab::cast_cash_to_float("Fees & Comm")
                     .fill_null(lit(0))
-                    .alias(Columns::Commission.into()),
-                lit(Country::Usa.as_str()).alias(Columns::Country.into()),
-                lit(Type::Stock.to_string()).alias(Columns::Type.into()),
+                    .alias(Column::Commission.into()),
+                lit(Country::Usa.as_str()).alias(Column::Country.into()),
+                lit(Type::Stock.to_string()).alias(Column::Type.into()),
                 col("Description"),
             ])
             .with_column(
                 when(col("Description").str().contains(lit(r"FEE"), false))
                     .then(lit(schema::Action::Fee.as_str()))
-                    .otherwise(col(Columns::Action.into()))
-                    .alias(Columns::Action.into()),
+                    .otherwise(col(Column::Action.into()))
+                    .alias(Column::Action.into()),
             )
             .with_column(
-                col(Columns::Price.into())
-                    .fill_null(col(Columns::Amount.into()))
-                    .alias(Columns::Price.into()),
+                col(Column::Price.into())
+                    .fill_null(col(Column::Amount.into()))
+                    .alias(Column::Price.into()),
             )
             .with_columns([
-                col(Columns::Action.into()).str().replace(
+                col(Column::Action.into()).str().replace(
                     lit(r".*Tax.*"),
                     lit(Action::Tax.as_str()),
                     false,
                 ),
-                lit(self.currency.as_str()).alias(Columns::Currency.into()),
+                lit(self.currency.as_str()).alias(Column::Currency.into()),
             ]);
 
         Ok(Self::sanitize(df).collect()?)

@@ -5,7 +5,7 @@ use polars_lazy::frame::LazyFrame;
 pub use schwab::Schwab;
 pub use trading212::Trading212;
 
-use crate::schema::Columns::*;
+use crate::schema::Column::*;
 use anyhow::Result;
 use glob::glob;
 use polars::prelude::{col, concat, DataFrame, IntoLazy, SortOptions};

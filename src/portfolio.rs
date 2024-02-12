@@ -24,19 +24,19 @@ impl Portfolio {
             .filter(utils::polars::filter::buy_or_sell())
             .with_column(utils::polars::compute::negative_qty_on_sell())
             // Compute the Amount, and AccruedQty by ticker.
-            .group_by([col(schema::Columns::Ticker.into())])
+            .group_by([col(schema::Column::Ticker.into())])
             .agg([
-                col(schema::Columns::Amount.into())
+                col(schema::Column::Amount.into())
                     .sum()
-                    .alias(schema::Columns::Amount.into()),
-                col(schema::Columns::Qty.into())
+                    .alias(schema::Column::Amount.into()),
+                col(schema::Column::Qty.into())
                     .sum()
-                    .alias(schema::Columns::AccruedQty.into()),
-                col(schema::Columns::Country.into()).first(),
-                col(schema::Columns::Currency.into()).last(),
+                    .alias(schema::Column::AccruedQty.into()),
+                col(schema::Column::Country.into()).first(),
+                col(schema::Column::Currency.into()).last(),
             ])
-            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
-            .sort(schema::Columns::Ticker.into(), SortOptions::default());
+            .filter(col(schema::Column::AccruedQty.into()).gt(lit(0)))
+            .sort(schema::Column::Ticker.into(), SortOptions::default());
 
         Portfolio {
             data: result,
@@ -50,8 +50,8 @@ impl Portfolio {
         let quotes = Self::quotes(scraper, &result)?;
 
         let result = result.lazy().with_column(
-            utils::polars::map_column_str_to_f64(schema::Columns::Ticker.into(), quotes)
-                .alias(schema::Columns::MarketPrice.into()),
+            utils::polars::map_column_str_to_f64(schema::Column::Ticker.into(), quotes)
+                .alias(schema::Column::MarketPrice.into()),
         );
         self.data = result;
         Ok(self)
@@ -66,20 +66,19 @@ impl Portfolio {
             .data
             .join(
                 avg.lazy(),
-                [col(schema::Columns::Ticker.into())],
-                [col(schema::Columns::Ticker.into())],
+                [col(schema::Column::Ticker.into())],
+                [col(schema::Column::Ticker.into())],
                 JoinArgs::new(JoinType::Left),
             )
             .fill_null(0f64)
             .with_column(
-                col(&(schema::Columns::AccruedQty.as_str().to_string() + "_right"))
-                    .alias(schema::Columns::AccruedQty.into()),
+                col(&(schema::Column::AccruedQty.as_str().to_string() + "_right"))
+                    .alias(schema::Column::AccruedQty.into()),
             )
-            .filter(col(schema::Columns::AccruedQty.into()).gt(lit(0)))
+            .filter(col(schema::Column::AccruedQty.into()).gt(lit(0)))
             .with_column(
-                (col(schema::Columns::AccruedQty.into())
-                    * col(schema::Columns::AveragePrice.into()))
-                .alias(schema::Columns::Amount.into()),
+                (col(schema::Column::AccruedQty.into()) * col(schema::Column::AveragePrice.into()))
+                    .alias(schema::Column::Amount.into()),
             );
 
         Ok(self)
@@ -107,8 +106,8 @@ impl Portfolio {
             .data
             .join(
                 dividends.lazy(),
-                [col(schema::Columns::Ticker.into())],
-                [col(schema::Columns::Ticker.into())],
+                [col(schema::Column::Ticker.into())],
+                [col(schema::Column::Ticker.into())],
                 JoinArgs::new(JoinType::Left),
             )
             .fill_null(0f64);
@@ -117,9 +116,9 @@ impl Portfolio {
 
     pub fn with_uninvested_cash(mut self, cash: DataFrame) -> Self {
         let match_on: Vec<_> = [
-            schema::Columns::Ticker,
-            schema::Columns::Amount,
-            schema::Columns::Currency,
+            schema::Column::Ticker,
+            schema::Column::Amount,
+            schema::Column::Currency,
         ]
         .iter()
         .map(|x| col(x.as_str()))
@@ -133,8 +132,8 @@ impl Portfolio {
                 match_on,
                 JoinArgs::new(JoinType::Outer { coalesce: true }),
             )
-            .with_column(col(schema::Columns::AccruedQty.into()).fill_null(lit(1)))
-            .fill_null(col(schema::Columns::Amount.into()));
+            .with_column(col(schema::Column::AccruedQty.into()).fill_null(lit(1)))
+            .fill_null(col(schema::Column::Amount.into()));
 
         self
     }
@@ -151,22 +150,21 @@ impl Portfolio {
     ) -> Result<Self> {
         self.data = currency::normalize(
             self.data.clone(),
-            &[dtype_col(&DataType::Float64).exclude([schema::Columns::AccruedQty.as_str()])],
+            &[dtype_col(&DataType::Float64).exclude([schema::Column::AccruedQty.as_str()])],
             currency,
             scraper,
         )?
         .group_by([
-            schema::Columns::Ticker.as_str(),
-            schema::Columns::Currency.as_str(),
+            schema::Column::Ticker.as_str(),
+            schema::Column::Currency.as_str(),
         ])
         .agg([
-            col(schema::Columns::Amount.as_str()).sum(),
-            col(schema::Columns::AccruedQty.as_str()).first(),
-            col(schema::Columns::MarketPrice.as_str()).first(),
-            (col(schema::Columns::AveragePrice.as_str())
-                * col(schema::Columns::AccruedQty.as_str()))
-            .sum()
-                / col(schema::Columns::AccruedQty.as_str()).sum(),
+            col(schema::Column::Amount.as_str()).sum(),
+            col(schema::Column::AccruedQty.as_str()).first(),
+            col(schema::Column::MarketPrice.as_str()).first(),
+            (col(schema::Column::AveragePrice.as_str()) * col(schema::Column::AccruedQty.as_str()))
+                .sum()
+                / col(schema::Column::AccruedQty.as_str()).sum(),
         ]);
         Ok(self)
     }
@@ -179,13 +177,13 @@ impl Portfolio {
     }
 
     pub fn collect(self) -> Result<DataFrame> {
-        let exclude: &[&str] = &[schema::Columns::Country.into(), "^.*_right$"];
+        let exclude: &[&str] = &[schema::Column::Country.into(), "^.*_right$"];
         Ok(self.data.select([col("*").exclude(exclude)]).collect()?)
     }
 
     fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
-        let t: &str = schema::Columns::Ticker.into();
-        let c: &str = schema::Columns::Country.into();
+        let t: &str = schema::Column::Ticker.into();
+        let c: &str = schema::Column::Country.into();
         let tickers = df.columns([t, c])?;
 
         let quotes: HashMap<String, f64> = tickers[0]
@@ -222,7 +220,7 @@ impl Portfolio {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Columns;
+    use crate::schema::Column;
     use crate::utils;
 
     #[test]
@@ -237,18 +235,18 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[2020.236, 1541.4],
-            Columns::AccruedQty.into() => &[13.20, 20.0],
-            Columns::MarketPrice.into() => &[103.95, 33.87],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() => &[2020.236, 1541.4],
+            Column::AccruedQty.into() => &[13.20, 20.0],
+            Column::MarketPrice.into() => &[103.95, 33.87],
         )
         .unwrap();
 
@@ -270,19 +268,19 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[1293.996, 691.0],
-            Columns::AccruedQty.into() => &[13.20, 10.0],
-            Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 69.10],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() => &[1293.996, 691.0],
+            Column::AccruedQty.into() => &[13.20, 10.0],
+            Column::MarketPrice.into() => &[103.95, 33.87],
+            Column::AveragePrice.into() => &[98.03, 69.10],
         )
         .unwrap();
 
@@ -306,19 +304,19 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(2),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[1125.78, 601.17],
-            Columns::AccruedQty.into() => &[13.20, 10.0],
-            Columns::MarketPrice.into() => &[90.44, 29.47],
-            Columns::AveragePrice.into() => &[85.29, 60.12],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() => &[1125.78, 601.17],
+            Column::AccruedQty.into() => &[13.20, 10.0],
+            Column::MarketPrice.into() => &[90.44, 29.47],
+            Column::AveragePrice.into() => &[85.29, 60.12],
         )
         .unwrap();
 
@@ -331,8 +329,8 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let dividends = df!(
-            Columns::Dividends.into() => &[1.45, 9.84],
-            Columns::Ticker.into() => &["GOOGL", "APPL"],
+            Column::Dividends.into() => &[1.45, 9.84],
+            Column::Ticker.into() => &["GOOGL", "APPL"],
         )
         .unwrap();
 
@@ -347,20 +345,20 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() =>&[1293.996, 691.0],
-            Columns::AccruedQty.into() => &[13.20, 10.0],
-            Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 69.10],
-            Columns::Dividends.into() => &[9.84, 1.45],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() =>&[1293.996, 691.0],
+            Column::AccruedQty.into() => &[13.20, 10.0],
+            Column::MarketPrice.into() => &[103.95, 33.87],
+            Column::AveragePrice.into() => &[98.03, 69.10],
+            Column::Dividends.into() => &[9.84, 1.45],
         )
         .unwrap();
 
@@ -383,22 +381,22 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[1293.996, 691.0],
-            Columns::AccruedQty.into() => &[13.20, 10.0],
-            Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 69.10],
-            Columns::MarketValue.into() => &[1372.14, 338.7],
-            Columns::PaperProfitRate.into() => &[6.039, -50.9841],
-            Columns::PaperProfit.into() => &[78.144, -352.3],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() => &[1293.996, 691.0],
+            Column::AccruedQty.into() => &[13.20, 10.0],
+            Column::MarketPrice.into() => &[103.95, 33.87],
+            Column::AveragePrice.into() => &[98.03, 69.10],
+            Column::MarketValue.into() => &[1372.14, 338.7],
+            Column::PaperProfitRate.into() => &[6.039, -50.9841],
+            Column::PaperProfit.into() => &[78.144, -352.3],
         )
         .unwrap();
 
@@ -411,8 +409,8 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let dividends = df!(
-            Columns::Dividends.into() => &[1.45, 9.84],
-            Columns::Ticker.into() => &["GOOGL", "APPL"],
+            Column::Dividends.into() => &[1.45, 9.84],
+            Column::Ticker.into() => &["GOOGL", "APPL"],
         )
         .unwrap();
 
@@ -429,25 +427,25 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Amount.into() => &[1293.996, 691.0],
-            Columns::AccruedQty.into() => &[13.20, 10.0],
-            Columns::MarketPrice.into() => &[103.95, 33.87],
-            Columns::AveragePrice.into() => &[98.03, 69.10],
-            Columns::Dividends.into() => &[9.84, 1.45],
-            Columns::MarketValue.into() => &[1372.14, 338.7],
-            Columns::PaperProfitRate.into() => &[6.039, -50.9841],
-            Columns::PaperProfit.into() => &[78.144, -352.3],
-            Columns::Profit.into() => &[87.984,-350.85],
-            Columns::ProfitRate.into() => &[6.7994, -50.7742],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() => &[1293.996, 691.0],
+            Column::AccruedQty.into() => &[13.20, 10.0],
+            Column::MarketPrice.into() => &[103.95, 33.87],
+            Column::AveragePrice.into() => &[98.03, 69.10],
+            Column::Dividends.into() => &[9.84, 1.45],
+            Column::MarketValue.into() => &[1372.14, 338.7],
+            Column::PaperProfitRate.into() => &[6.039, -50.9841],
+            Column::PaperProfit.into() => &[78.144, -352.3],
+            Column::Profit.into() => &[87.984,-350.85],
+            Column::ProfitRate.into() => &[6.7994, -50.7742],
         )
         .unwrap();
 

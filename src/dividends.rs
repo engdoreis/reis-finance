@@ -1,4 +1,4 @@
-use crate::schema::{Action, Columns};
+use crate::schema::{Action, Column};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
@@ -13,10 +13,10 @@ impl Dividends {
         Dividends {
             data: orders
                 .filter(
-                    col(Columns::Action.into())
+                    col(Column::Action.into())
                         .eq(lit(Action::Dividend.as_str()))
-                        .or(col(Columns::Action.into()).eq(lit(Action::Tax.as_str())))
-                        .or(col(Columns::Action.into()).eq(lit(Action::Interest.as_str()))),
+                        .or(col(Column::Action.into()).eq(lit(Action::Tax.as_str())))
+                        .or(col(Column::Action.into()).eq(lit(Action::Interest.as_str()))),
                 )
                 .with_column(utils::polars::compute::negative_amount_on_tax()),
         }
@@ -24,7 +24,7 @@ impl Dividends {
 
     pub fn pivot(&self) -> Result<DataFrame> {
         Ok(
-            utils::polars::transform::pivot_year_months(&self.data, &[Columns::Amount.as_str()])?
+            utils::polars::transform::pivot_year_months(&self.data, &[Column::Amount.as_str()])?
                 .collect()?,
         )
     }
@@ -33,10 +33,10 @@ impl Dividends {
         let result = self
             .data
             .clone()
-            .group_by([col(Columns::Ticker.into())])
-            .agg([col(Columns::Amount.into())
+            .group_by([col(Column::Ticker.into())])
+            .agg([col(Column::Amount.into())
                 .sum()
-                .alias(Columns::Dividends.into())])
+                .alias(Column::Dividends.into())])
             .collect()?;
 
         Ok(result)
@@ -46,7 +46,7 @@ impl Dividends {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Columns;
+    use crate::schema::Column;
     use crate::utils;
 
     #[test]
@@ -58,19 +58,19 @@ mod unittest {
             .unwrap()
             .lazy()
             .select([
-                col(Columns::Ticker.into()),
+                col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Columns::Ticker.into(), SortOptions::default())
+            .sort(Column::Ticker.into(), SortOptions::default())
             .collect()
             .unwrap();
 
         let expected = df! (
-            Columns::Ticker.into() => &["APPL", "GOOGL"],
-            Columns::Dividends.into() => &[2.75, 3.26],
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Dividends.into() => &[2.75, 3.26],
         )
         .unwrap()
-        .sort(&[Columns::Ticker.as_str()], false, false)
+        .sort(&[Column::Ticker.as_str()], false, false)
         .unwrap();
         assert_eq!(expected, result);
     }
