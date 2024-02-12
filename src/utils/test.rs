@@ -1,5 +1,4 @@
-#[cfg(test)]
-pub mod test {
+
     use crate::schema;
     use crate::schema::Action::*;
     use crate::schema::Column::*;
@@ -151,6 +150,3 @@ pub mod test {
             .collect()
             .unwrap()
     }
-}
-
-pub mod polars;
