@@ -8,7 +8,6 @@ use std::collections::HashMap;
 
 pub fn normalize(
     table: impl IntoLazyFrame,
-    // columns: &[schema::Columns],
     columns: &[Expr],
     currency: schema::Currency,
     scraper: &mut impl IScraper,

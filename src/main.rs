@@ -53,7 +53,7 @@ fn main() -> Result<()> {
         orders.push(broker.load_from_dir(trading212_orders.as_path())?);
     }
 
-    if orders.len() > 0 {
+    if !orders.is_empty() {
         execute(orders, args.currency)
     } else {
         anyhow::bail!("You must provide orders.")

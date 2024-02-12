@@ -83,7 +83,7 @@ impl Timeline {
                 ],
                 Default::default(),
             )?;
-            date = date - chrono::Duration::days(interval_days as i64);
+            date -= chrono::Duration::days(interval_days as i64);
         }
 
         Ok(result
