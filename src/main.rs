@@ -67,7 +67,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, currency: schema::Currency) -> Resul
         df = concat([df, lf.into_lazy()], Default::default())?;
     }
     let orders = df
-        .sort("Date", Default::default())
+        .sort(schema::Column::Date.as_str(), Default::default())
         .collect()
         .unwrap()
         .lazy();
