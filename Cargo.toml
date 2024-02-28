@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "reis_finance_lib"
-path = "src/lib.rs"
+path = "src/lib/lib.rs"
 
 [[bin]]
 name = "reis_finance_cli"
@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.78"
 chrono = "0.4.31"
+clap = { version = "4.5.0", features = ["derive"] }
 derive_more = "0.99.17"
 either = "1.9.0"
 glob = "0.3.1"

@@ -1,4 +1,4 @@
-use crate::schema::Columns;
+use crate::schema::Column;
 use crate::schema::Currency;
 use anyhow::{anyhow, Result};
 
@@ -61,7 +61,7 @@ impl IScraper for Yahoo {
         self
     }
 
-    fn load(&mut self, search_interval: SearchBy) -> Result<&Self> {
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<&Self> {
         self.response = Some(match search_interval {
             SearchBy::PeriodFromNow(range) => tokio_test::block_on(self.provider.get_quote_range(
                 &self.ticker,
@@ -99,7 +99,7 @@ impl IScraper for Yahoo {
 
         let quotes = response.quotes()?;
         Ok(ElementSet {
-            columns: (Columns::Date, Columns::Price),
+            columns: (Column::Date, Column::Price),
             data: quotes
                 .iter()
                 .map(|quote| Element {
@@ -118,7 +118,7 @@ impl IScraper for Yahoo {
 
         let quotes = response.splits()?;
         Ok(ElementSet {
-            columns: (Columns::Date, Columns::Qty),
+            columns: (Column::Date, Column::Qty),
             data: quotes
                 .iter()
                 .map(|split| Element {
@@ -138,7 +138,7 @@ impl IScraper for Yahoo {
         let quotes = response.dividends()?;
 
         Ok(ElementSet {
-            columns: (Columns::Date, Columns::Price),
+            columns: (Column::Date, Column::Price),
             data: quotes
                 .iter()
                 .map(|div| Element {
@@ -168,7 +168,7 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker("AAPL")
-            .load(SearchBy::TimeRange {
+            .load_blocking(SearchBy::TimeRange {
                 start: "2023-08-06".parse().unwrap(),
                 end: "2024-01-06".parse().unwrap(),
                 interval: Interval::Day(1),
@@ -199,7 +199,7 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker("GOOGL")
-            .load(SearchBy::TimeRange {
+            .load_blocking(SearchBy::TimeRange {
                 start: "2022-01-06".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),
                 interval: Interval::Day(1),
@@ -230,7 +230,7 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker("AAPL")
-            .load(SearchBy::TimeRange {
+            .load_blocking(SearchBy::TimeRange {
                 start: "2022-01-06".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),
                 interval: Interval::Day(1),
@@ -258,7 +258,7 @@ mod unittest {
         let data = yh
             .with_ticker("TSCO")
             .with_country(schema::Country::Uk)
-            .load(SearchBy::TimeRange {
+            .load_blocking(SearchBy::TimeRange {
                 start: "2024-02-05".parse().unwrap(),
                 end: "2024-02-06".parse().unwrap(),
                 interval: Interval::Day(1),
@@ -281,7 +281,7 @@ mod unittest {
         let data = yh
             .with_ticker("WEGE3")
             .with_country(schema::Country::Brazil)
-            .load(SearchBy::TimeRange {
+            .load_blocking(SearchBy::TimeRange {
                 start: "2023-01-05".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),
                 interval: Interval::Day(1),
@@ -303,7 +303,7 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_currency(from, to)
-            .load(SearchBy::TimeRange {
+            .load_blocking(SearchBy::TimeRange {
                 start: "2024-02-08".parse().unwrap(),
                 end: "2024-02-09".parse().unwrap(),
                 interval: Interval::Day(1),

@@ -12,12 +12,12 @@ impl Cash {
         Self {
             data: orders
                 .filter(
-                    col(schema::Columns::Action.into()).neq(lit(schema::Action::Ignore.as_str())),
+                    col(schema::Column::Action.into()).neq(lit(schema::Action::Ignore.as_str())),
                 )
                 .select([
-                    col(schema::Columns::Currency.into()),
+                    col(schema::Column::Currency.into()),
                     //Make the Amount negative when selling.
-                    when(col(schema::Columns::Action.into()).str().contains(
+                    when(col(schema::Column::Action.into()).str().contains(
                         lit(format!(
                             "{}|{}|{}|{}",
                             schema::Action::Buy.as_str(),
@@ -27,9 +27,9 @@ impl Cash {
                         )),
                         false,
                     ))
-                    .then(col(schema::Columns::Amount.into()) * lit(-1))
-                    .otherwise(col(schema::Columns::Amount.into()))
-                    .alias(schema::Columns::Amount.into()),
+                    .then(col(schema::Column::Amount.into()) * lit(-1))
+                    .otherwise(col(schema::Column::Amount.into()))
+                    .alias(schema::Column::Amount.into()),
                 ]),
         }
     }
@@ -37,9 +37,9 @@ impl Cash {
     pub fn collect(self) -> Result<DataFrame> {
         Ok(self
             .data
-            .group_by([schema::Columns::Currency.as_str()])
-            .agg([col(schema::Columns::Amount.into()).sum()])
-            .with_column(lit(schema::Type::Cash.as_str()).alias(schema::Columns::Ticker.into()))
+            .group_by([schema::Column::Currency.as_str()])
+            .agg([col(schema::Column::Amount.into()).sum()])
+            .with_column(lit(schema::Type::Cash.as_str()).alias(schema::Column::Ticker.into()))
             .collect()?)
     }
 }
@@ -48,7 +48,7 @@ impl Cash {
 mod unittest {
     use super::*;
     use crate::schema::Action::{self, *};
-    use crate::schema::Columns::*;
+    use crate::schema::Column::*;
     use crate::schema::Currency::*;
 
     #[test]
@@ -88,7 +88,7 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .sort(schema::Columns::Currency.into(), SortOptions::default())
+            .sort(schema::Column::Currency.into(), SortOptions::default())
             .collect()
             .unwrap();
 

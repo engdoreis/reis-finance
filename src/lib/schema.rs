@@ -3,7 +3,7 @@ use strum_macros;
 
 #[derive(Debug, Clone, Copy, strum::IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
-pub enum Columns {
+pub enum Column {
     Date,
     Ticker,
     Qty,
@@ -34,7 +34,7 @@ pub enum Columns {
     AllocationRate,
 }
 
-impl Columns {
+impl Column {
     // TODO: Can be implemented using generics?
     pub fn as_str(self) -> &'static str {
         self.into()

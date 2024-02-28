@@ -8,7 +8,6 @@ use std::collections::HashMap;
 
 pub fn normalize(
     table: impl IntoLazyFrame,
-    // columns: &[schema::Columns],
     columns: &[Expr],
     currency: schema::Currency,
     scraper: &mut impl IScraper,
@@ -19,7 +18,7 @@ pub fn normalize(
     let currencies: HashMap<String, f64> = table
         .clone()
         .collect()?
-        .column(schema::Columns::Currency.as_str())?
+        .column(schema::Column::Currency.as_str())?
         .unique_stable()?
         .iter()
         .map(|cell| {
@@ -34,7 +33,7 @@ pub fn normalize(
 
             if let Ok(scraper) = scraper
                 .with_currency(current_currency, currency)
-                .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
+                .load_blocking(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
             {
                 (
                     current_currency.to_string(),
@@ -55,12 +54,12 @@ pub fn normalize(
     table = table
         .into_lazy()
         .with_column(
-            utils::polars::map_column_str_to_f64(schema::Columns::Currency.as_str(), currencies)
+            utils::polars::map_column_str_to_f64(schema::Column::Currency.as_str(), currencies)
                 .alias(EXCHANGE_RATE),
         )
         .with_columns(cols)
         // .with_column(columns * col(EXCHANGE_RATE))
-        .with_column(lit(currency.as_str()).alias(schema::Columns::Currency.as_str()))
+        .with_column(lit(currency.as_str()).alias(schema::Column::Currency.as_str()))
         .select([col("*").exclude([EXCHANGE_RATE])]);
 
     Ok(table)
@@ -70,7 +69,7 @@ pub fn normalize(
 mod unittest {
     use super::*;
     use crate::schema::Action::{self, *};
-    use crate::schema::Columns::*;
+    use crate::schema::Column::*;
     use crate::schema::Currency::*;
 
     #[test]
