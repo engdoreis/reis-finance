@@ -6,10 +6,12 @@ use polars::prelude::*;
 
 use reis_finance_lib::broker::{IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
+use reis_finance_lib::googlesheet::GoogleSheet;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::schema;
 use reis_finance_lib::scraper::Yahoo;
 use reis_finance_lib::summary::Summary;
+use reis_finance_lib::timeline::Timeline;
 use reis_finance_lib::uninvested;
 use reis_finance_lib::{liquidated, IntoLazyFrame};
 
@@ -106,12 +108,18 @@ fn execute(orders: Vec<impl IntoLazyFrame>, currency: schema::Currency) -> Resul
     println!("{}", &portfolio);
 
     // dbg!(&profit);
-    dbg!(liquidated::Profit::from_orders(orders.clone())?.pivot()?);
+    let profit_pivot = liquidated::Profit::from_orders(orders.clone())?.pivot()?;
+    dbg!(&profit_pivot);
 
-    let pivot = Dividends::from_orders(orders.clone()).pivot()?;
-    dbg!(&pivot);
+    let div_pivot = Dividends::from_orders(orders.clone()).pivot()?;
+    dbg!(&div_pivot);
+    let mut sheet = GoogleSheet::new()?;
+    sheet.update_sheets(&summary)?;
+    sheet.update_sheets(&portfolio)?;
+    sheet.update_sheets(&profit_pivot)?;
+    sheet.update_sheets(&div_pivot)?;
 
-    // let timeline = Timeline::from_orders(orders.clone()).summary(&mut yahoo_scraper, 45)?;
+    let timeline = Timeline::from_orders(orders.clone()).summary(&mut yahoo_scraper, 15, None)?;
+    sheet.update_sheets(&timeline)
     // dbg!(timeline);
-    Ok(())
 }
