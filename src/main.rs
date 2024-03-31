@@ -24,12 +24,16 @@ use std::str::FromStr;
 #[command(version, about, long_about = None)]
 struct Args {
     /// A folder with Trading 212 orders
-    #[arg(short, long, value_parser =  PathBuf::from_str)]
+    #[arg(long, value_parser =  PathBuf::from_str)]
     trading212_orders: Option<PathBuf>,
 
     /// A folder with Schwab orders
-    #[arg(short, long, value_parser =  PathBuf::from_str)]
+    #[arg(long, value_parser =  PathBuf::from_str)]
     schwab_orders: Option<PathBuf>,
+
+    /// A folder with Schwab orders
+    #[arg(short, long)]
+    timeline: Option<usize>,
 
     /// The currency to be used
     #[arg(short, long, value_parser =  schema::Currency::from_str, default_value = "USD")]
@@ -45,24 +49,24 @@ fn main() -> Result<()> {
     let args: Args = Args::parse();
     let mut orders: Vec<DataFrame> = Vec::new();
 
-    if let Some(schwab_orders) = args.schwab_orders {
+    if let Some(schwab_orders) = &args.schwab_orders {
         let broker = Schwab::default();
         orders.push(broker.load_from_dir(schwab_orders.as_path())?);
     }
 
-    if let Some(trading212_orders) = args.trading212_orders {
+    if let Some(trading212_orders) = &args.trading212_orders {
         let broker = Trading212::default();
         orders.push(broker.load_from_dir(trading212_orders.as_path())?);
     }
 
     if !orders.is_empty() {
-        execute(orders, args.currency)
+        execute(orders, &args)
     } else {
         anyhow::bail!("You must provide orders.")
     }
 }
 
-fn execute(orders: Vec<impl IntoLazyFrame>, currency: schema::Currency) -> Result<()> {
+fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
     let mut yahoo_scraper = Yahoo::new();
     let mut df = LazyFrame::default();
     for lf in orders {
@@ -88,7 +92,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, currency: schema::Currency) -> Resul
         .with_quotes(&mut yahoo_scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
-        .normalize_currency(&mut yahoo_scraper, currency)?
+        .normalize_currency(&mut yahoo_scraper, args.currency)?
         .paper_profit()
         .with_dividends(dividends.clone())
         .with_profit()
@@ -107,7 +111,6 @@ fn execute(orders: Vec<impl IntoLazyFrame>, currency: schema::Currency) -> Resul
 
     println!("{}", &portfolio);
 
-    // dbg!(&profit);
     let profit_pivot = liquidated::Profit::from_orders(orders.clone())?.pivot()?;
     dbg!(&profit_pivot);
 
@@ -119,7 +122,11 @@ fn execute(orders: Vec<impl IntoLazyFrame>, currency: schema::Currency) -> Resul
     sheet.update_sheets(&profit_pivot)?;
     sheet.update_sheets(&div_pivot)?;
 
-    let timeline = Timeline::from_orders(orders.clone()).summary(&mut yahoo_scraper, 15, None)?;
-    sheet.update_sheets(&timeline)
+    if let Some(timeline) = args.timeline {
+        let timeline =
+            Timeline::from_orders(orders.clone()).summary(&mut yahoo_scraper, timeline, None)?;
+        sheet.update_sheets(&timeline)?;
+    }
+    Ok(())
     // dbg!(timeline);
 }
