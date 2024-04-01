@@ -12,7 +12,10 @@ pub trait IScraper {
     fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self;
     fn with_country(&mut self, contry: schema::Country) -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<&Self>;
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<impl IScraperData>;
+}
+
+pub trait IScraperData {
     fn quotes(&self) -> Result<Quotes>;
     fn splits(&self) -> Result<Splits>;
     fn dividends(&self) -> Result<Dividends>;
@@ -22,13 +25,13 @@ pub type Quotes = ElementSet;
 pub type Splits = ElementSet;
 pub type Dividends = ElementSet;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Element {
     pub date: chrono::NaiveDate,
     pub number: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ElementSet {
     pub columns: (schema::Column, schema::Column),
     pub data: Vec<Element>,

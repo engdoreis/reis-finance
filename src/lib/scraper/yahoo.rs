@@ -1,16 +1,20 @@
 use crate::schema::Column;
 use crate::schema::Currency;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use chrono::{self, TimeZone};
 use yahoo_finance_api as yahoo;
 
 use super::*;
 
+pub struct YahooResponse {
+    response: yahoo::YResponse,
+    currency_converter: f64,
+}
+
 pub struct Yahoo {
     ticker: String,
     provider: yahoo::YahooConnector,
-    response: Option<yahoo::YResponse>,
     currency_converter: f64,
 }
 
@@ -25,15 +29,8 @@ impl Yahoo {
         Self {
             ticker: "".to_string(),
             provider: yahoo::YahooConnector::new(),
-            response: None,
             currency_converter: 1.0,
         }
-    }
-
-    fn response(&self) -> Result<&yahoo::YResponse> {
-        self.response
-            .as_ref()
-            .ok_or(anyhow!("load function should be called first"))
     }
 }
 
@@ -61,8 +58,8 @@ impl IScraper for Yahoo {
         self
     }
 
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<&Self> {
-        self.response = Some(match search_interval {
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<impl IScraperData> {
+        let response = match search_interval {
             SearchBy::PeriodFromNow(range) => tokio_test::block_on(self.provider.get_quote_range(
                 &self.ticker,
                 &Interval::Day(1).to_string(),
@@ -89,15 +86,18 @@ impl IScraper for Yahoo {
                 )?,
                 &interval.to_string(),
             )),
-        }?);
+        }?;
 
-        Ok(self)
+        Ok(YahooResponse {
+            response,
+            currency_converter: self.currency_converter,
+        })
     }
+}
 
+impl IScraperData for YahooResponse {
     fn quotes(&self) -> Result<Quotes> {
-        let response = self.response()?;
-
-        let quotes = response.quotes()?;
+        let quotes = self.response.quotes()?;
         Ok(ElementSet {
             columns: (Column::Date, Column::Price),
             data: quotes
@@ -114,9 +114,7 @@ impl IScraper for Yahoo {
     }
 
     fn splits(&self) -> Result<Splits> {
-        let response = self.response()?;
-
-        let quotes = response.splits()?;
+        let quotes = self.response.splits()?;
         Ok(ElementSet {
             columns: (Column::Date, Column::Qty),
             data: quotes
@@ -133,10 +131,7 @@ impl IScraper for Yahoo {
     }
 
     fn dividends(&self) -> Result<Dividends> {
-        let response = self.response()?;
-
-        let quotes = response.dividends()?;
-
+        let quotes = self.response.dividends()?;
         Ok(ElementSet {
             columns: (Column::Date, Column::Price),
             data: quotes

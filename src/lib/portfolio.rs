@@ -1,7 +1,7 @@
 use crate::currency;
 use crate::perpetual_inventory::AverageCost;
 use crate::schema;
-use crate::scraper::{self, IScraper};
+use crate::scraper::{self, IScraper, IScraperData};
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;

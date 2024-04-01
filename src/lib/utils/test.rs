@@ -44,6 +44,9 @@ pub mod mock {
         ticker: String,
         map: HashMap<String, f64>,
     }
+    pub struct ScraperData {
+        quote: Quotes,
+    }
 
     impl Scraper {
         pub fn new() -> Self {
@@ -76,18 +79,20 @@ pub mod mock {
             self
         }
 
-        fn load_blocking(&mut self, _search_interval: SearchBy) -> Result<&Self> {
-            Ok(self)
-        }
-
-        fn quotes(&self) -> Result<Quotes> {
-            Ok(ElementSet {
+        fn load_blocking(&mut self, _search_interval: SearchBy) -> Result<impl IScraperData> {
+            Ok(ScraperData{quote: ElementSet {
                 columns: (Column::Date, Column::Price),
                 data: vec![Element {
                     date: "2022-10-01".parse().unwrap(),
                     number: *self.map.get(&self.ticker).unwrap(),
                 }],
-            })
+            }})
+        }
+    }
+
+    impl IScraperData for ScraperData {
+        fn quotes(&self) -> Result<Quotes> {
+            Ok(self.quote.clone())
         }
 
         fn splits(&self) -> Result<Splits> {

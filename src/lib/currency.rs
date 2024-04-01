@@ -1,5 +1,5 @@
 use crate::schema;
-use crate::scraper::{self, IScraper};
+use crate::scraper::{self, IScraper, IScraperData};
 use crate::utils;
 use crate::IntoLazyFrame;
 use anyhow::Result;
