@@ -80,13 +80,15 @@ pub mod mock {
         }
 
         fn load_blocking(&mut self, _search_interval: SearchBy) -> Result<impl IScraperData> {
-            Ok(ScraperData{quote: ElementSet {
-                columns: (Column::Date, Column::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: *self.map.get(&self.ticker).unwrap(),
-                }],
-            }})
+            Ok(ScraperData {
+                quote: ElementSet {
+                    columns: (Column::Date, Column::Price),
+                    data: vec![Element {
+                        date: "2022-10-01".parse().unwrap(),
+                        number: *self.map.get(&self.ticker).unwrap(),
+                    }],
+                },
+            })
         }
     }
 
