@@ -1,6 +1,7 @@
 pub mod broker;
 pub mod currency;
 pub mod dividends;
+pub mod googlesheet;
 pub mod liquidated;
 pub mod perpetual_inventory;
 pub mod portfolio;
@@ -9,7 +10,6 @@ pub mod scraper;
 pub mod summary;
 pub mod timeline;
 pub mod uninvested;
-
 pub mod utils;
 
 use polars::prelude::{DataFrame, IntoLazy, LazyFrame};
