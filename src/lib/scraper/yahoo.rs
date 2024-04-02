@@ -58,34 +58,41 @@ impl IScraper for Yahoo {
         self
     }
 
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<impl IScraperData> {
+    fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData> {
+        tokio_test::block_on(self.load(search_interval))
+    }
+
+    async fn load<'a, 'b>(&'a self, search_interval: SearchBy) -> Result<impl IScraperData + 'b> {
+        let ticker = self.ticker.clone();
         let response = match search_interval {
-            SearchBy::PeriodFromNow(range) => tokio_test::block_on(self.provider.get_quote_range(
-                &self.ticker,
-                &Interval::Day(1).to_string(),
-                &range.to_string(),
-            )),
+            SearchBy::PeriodFromNow(range) => {
+                self.provider
+                    .get_quote_range(&ticker, &Interval::Day(1).to_string(), &range.to_string())
+                    .await
+            }
             SearchBy::PeriodIntervalFromNow { range, interval } => {
-                tokio_test::block_on(self.provider.get_quote_range(
-                    &self.ticker,
-                    &interval.to_string(),
-                    &range.to_string(),
-                ))
+                self.provider
+                    .get_quote_range(&ticker, &interval.to_string(), &range.to_string())
+                    .await
             }
             SearchBy::TimeRange {
                 start,
                 end,
                 interval,
-            } => tokio_test::block_on(self.provider.get_quote_history_interval(
-                &self.ticker,
-                time::OffsetDateTime::from_unix_timestamp(
-                    start.and_hms_opt(0, 0, 0).unwrap().timestamp(),
-                )?,
-                time::OffsetDateTime::from_unix_timestamp(
-                    end.and_hms_opt(0, 0, 0).unwrap().timestamp(),
-                )?,
-                &interval.to_string(),
-            )),
+            } => {
+                self.provider
+                    .get_quote_history_interval(
+                        &ticker,
+                        time::OffsetDateTime::from_unix_timestamp(
+                            start.and_hms_opt(0, 0, 0).unwrap().timestamp(),
+                        )?,
+                        time::OffsetDateTime::from_unix_timestamp(
+                            end.and_hms_opt(0, 0, 0).unwrap().timestamp(),
+                        )?,
+                        &interval.to_string(),
+                    )
+                    .await
+            }
         }?;
 
         Ok(YahooResponse {

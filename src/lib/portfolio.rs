@@ -47,7 +47,7 @@ impl Portfolio {
     pub fn with_quotes(mut self, scraper: &mut impl IScraper) -> Result<Self> {
         let result = self.data.collect()?;
 
-        let quotes = Self::quotes(scraper, &result)?;
+        let quotes = tokio_test::block_on(Self::quotes(scraper, &result))?;
 
         let result = result.lazy().with_column(
             utils::polars::map_column_str_to_f64(schema::Column::Ticker.into(), quotes)
@@ -181,37 +181,37 @@ impl Portfolio {
         Ok(self.data.select([col("*").exclude(exclude)]).collect()?)
     }
 
-    fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
-        let t: &str = schema::Column::Ticker.into();
-        let c: &str = schema::Column::Country.into();
-        let tickers = df.columns([t, c])?;
+    async fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
+        let data = df.columns([
+            schema::Column::Ticker.as_str(),
+            schema::Column::Country.as_str(),
+        ])?;
 
-        let quotes: HashMap<String, f64> = tickers[0]
-            .iter()
-            .zip(tickers[1].iter())
-            .map(|(ticker, country)| {
-                let AnyValue::String(ticker) = ticker else {
-                    panic!("Can't get ticker from: {ticker}");
-                };
-                let AnyValue::String(country) = country else {
-                    panic!("Can't get country from: {country}");
-                };
+        let mut quotes: HashMap<String, f64> = HashMap::new();
+        for (ticker, country) in data[0].iter().zip(data[1].iter()) {
+            let AnyValue::String(ticker) = ticker else {
+                panic!("Can't unwrap ticker from: {ticker}");
+            };
+            let AnyValue::String(country) = country else {
+                panic!("Can't unwrap country from: {country}");
+            };
 
-                if let Ok(scraper) = scraper
-                    .with_ticker(ticker)
-                    .with_country(schema::Country::from_str(country).unwrap())
-                    .load_blocking(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
-                {
-                    (
-                        ticker.to_owned(),
-                        scraper.quotes().unwrap().first().unwrap().number,
-                    )
+            let result = scraper
+                .with_ticker(ticker)
+                .with_country(schema::Country::from_str(country).unwrap())
+                .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
+                .await;
+
+            quotes.insert(
+                ticker.to_owned(),
+                if let Ok(result) = result {
+                    result.quotes().unwrap().first().unwrap().number
                 } else {
-                    println!("Can't read ticker {ticker}");
-                    (ticker.to_owned(), 0.0f64)
-                }
-            })
-            .collect();
+                    println!("Can't find ticker {ticker}");
+                    0.0f64
+                },
+            );
+        }
 
         Ok(quotes)
     }

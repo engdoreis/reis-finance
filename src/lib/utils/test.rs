@@ -79,7 +79,11 @@ pub mod mock {
             self
         }
 
-        fn load_blocking(&mut self, _search_interval: SearchBy) -> Result<impl IScraperData> {
+        fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData> {
+            tokio_test::block_on(self.load(search_interval))
+        }
+
+        async fn load<'a, 'b>(&'a self, _: SearchBy) -> Result<impl IScraperData + 'b> {
             Ok(ScraperData {
                 quote: ElementSet {
                     columns: (Column::Date, Column::Price),
