@@ -44,6 +44,9 @@ pub mod mock {
         ticker: String,
         map: HashMap<String, f64>,
     }
+    pub struct ScraperData {
+        quote: Quotes,
+    }
 
     impl Scraper {
         pub fn new() -> Self {
@@ -76,18 +79,26 @@ pub mod mock {
             self
         }
 
-        fn load_blocking(&mut self, _search_interval: SearchBy) -> Result<&Self> {
-            Ok(self)
+        fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData> {
+            tokio_test::block_on(self.load(search_interval))
         }
 
-        fn quotes(&self) -> Result<Quotes> {
-            Ok(ElementSet {
-                columns: (Column::Date, Column::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: *self.map.get(&self.ticker).unwrap(),
-                }],
+        async fn load<'a, 'b>(&'a self, _: SearchBy) -> Result<impl IScraperData + 'b> {
+            Ok(ScraperData {
+                quote: ElementSet {
+                    columns: (Column::Date, Column::Price),
+                    data: vec![Element {
+                        date: "2022-10-01".parse().unwrap(),
+                        number: *self.map.get(&self.ticker).unwrap(),
+                    }],
+                },
             })
+        }
+    }
+
+    impl IScraperData for ScraperData {
+        fn quotes(&self) -> Result<Quotes> {
+            Ok(self.quote.clone())
         }
 
         fn splits(&self) -> Result<Splits> {
