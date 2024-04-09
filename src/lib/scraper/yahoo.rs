@@ -53,11 +53,11 @@ impl IScraper for Yahoo {
         self
     }
 
-    fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData> {
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<impl IScraperData> {
         tokio_test::block_on(self.load(search_interval))
     }
 
-    async fn load(&self, search_interval: SearchBy) -> Result<impl IScraperData + 'static> {
+    async fn load(&mut self, search_interval: SearchBy) -> Result<impl IScraperData + 'static> {
         let ticker = self.ticker.clone();
         let response = match search_interval {
             SearchBy::PeriodFromNow(range) => {

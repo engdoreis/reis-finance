@@ -12,9 +12,9 @@ pub trait IScraper {
     fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self;
     fn with_country(&mut self, country: schema::Country) -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData>;
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<impl IScraperData>;
     fn load(
-        &self,
+        &mut self,
         search_interval: SearchBy,
     ) -> impl std::future::Future<Output = Result<impl IScraperData + 'static>> + Send;
 }
