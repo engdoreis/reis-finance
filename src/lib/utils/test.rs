@@ -83,7 +83,7 @@ pub mod mock {
             tokio_test::block_on(self.load(search_interval))
         }
 
-        async fn load<'a, 'b>(&'a self, _: SearchBy) -> Result<impl IScraperData + 'b> {
+        async fn load(&self, _: SearchBy) -> Result<impl IScraperData + 'static> {
             Ok(ScraperData {
                 quote: ElementSet {
                     columns: (Column::Date, Column::Price),
