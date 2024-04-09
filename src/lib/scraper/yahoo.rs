@@ -7,11 +7,6 @@ use yahoo_finance_api as yahoo;
 
 use super::*;
 
-pub struct YahooResponse {
-    response: yahoo::YResponse,
-    currency_converter: f64,
-}
-
 pub struct Yahoo {
     ticker: String,
     provider: yahoo::YahooConnector,
@@ -100,6 +95,11 @@ impl IScraper for Yahoo {
             currency_converter: self.currency_converter,
         })
     }
+}
+
+pub struct YahooResponse {
+    response: yahoo::YResponse,
+    currency_converter: f64,
 }
 
 impl IScraperData for YahooResponse {
