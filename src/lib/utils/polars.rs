@@ -73,8 +73,8 @@ pub fn column_f64(df: &DataFrame, name: &str) -> Result<Vec<f64>> {
 
 pub mod compute {
     use crate::schema::{Action, Column::*};
+    use polars::lazy::dsl::Expr;
     use polars::prelude::*;
-    use polars_lazy::dsl::Expr;
 
     pub fn paper_profit_rate() -> Expr {
         ((col(MarketPrice.into()) / col(AveragePrice.into()) - lit(1)) * lit(100))
@@ -142,8 +142,8 @@ pub mod compute {
 
 pub mod filter {
     use crate::schema::{Action::*, Column::*};
+    use polars::lazy::dsl::Expr;
     use polars::prelude::*;
-    use polars_lazy::dsl::Expr;
 
     pub fn buy() -> Expr {
         col(Action.into()).eq(lit(Buy.as_str()))
@@ -175,8 +175,8 @@ pub mod filter {
 pub mod transform {
     use crate::schema::Column;
     use anyhow::Result;
+    use polars::lazy::dsl::dtype_col;
     use polars::prelude::*;
-    use polars_lazy::dsl::dtype_col;
     use polars_ops::pivot::{pivot, PivotAgg};
 
     pub fn pivot_year_months(data: &LazyFrame, value_columns: &[&str]) -> Result<LazyFrame> {

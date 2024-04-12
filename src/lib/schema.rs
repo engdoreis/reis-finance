@@ -1,6 +1,3 @@
-use strum;
-use strum_macros;
-
 #[derive(Debug, Clone, Copy, strum::IntoStaticStr, serde::Deserialize, serde::Serialize)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Column {
@@ -62,7 +59,7 @@ impl Action {
     }
 }
 
-#[derive(Debug, strum_macros::Display, strum::IntoStaticStr)]
+#[derive(Debug, strum::Display, strum::IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Type {
     Stock,
@@ -78,7 +75,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr, strum::EnumString)]
+#[derive(Debug, Default, strum::Display, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Country {
     #[default]
@@ -105,14 +102,7 @@ impl Country {
 }
 
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    PartialEq,
-    strum_macros::Display,
-    strum::IntoStaticStr,
-    strum::EnumString,
+    Debug, Default, Clone, Copy, PartialEq, strum::Display, strum::IntoStaticStr, strum::EnumString,
 )]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum Currency {

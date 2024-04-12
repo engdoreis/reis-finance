@@ -1,9 +1,6 @@
 use anyhow::Result;
-use dir;
 use polars::prelude::*;
 use regex::Regex;
-use serde;
-use serde_json;
 use sheets::types::ValueInputOption;
 use sheets::{self, Client};
 use std::path::PathBuf;
@@ -27,7 +24,7 @@ impl GoogleSheetConfig {
 impl std::default::Default for GoogleSheetConfig {
     fn default() -> Self {
         Self::from_file(
-            &dir::home_dir()
+            &dirs::home_dir()
                 .unwrap()
                 .join(".config/reis-finance/google_config.json"),
         )

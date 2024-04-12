@@ -4,8 +4,8 @@ use crate::schema;
 use crate::scraper::{self, IScraper, IScraperData};
 use crate::utils;
 use anyhow::Result;
+use polars::lazy::dsl::dtype_col;
 use polars::prelude::*;
-use polars_lazy::dsl::dtype_col;
 use std::str::FromStr;
 
 use std::collections::HashMap;
