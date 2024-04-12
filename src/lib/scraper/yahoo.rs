@@ -79,10 +79,10 @@ impl IScraper for Yahoo {
                     .get_quote_history_interval(
                         &ticker,
                         time::OffsetDateTime::from_unix_timestamp(
-                            start.and_hms_opt(0, 0, 0).unwrap().timestamp(),
+                            start.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(),
                         )?,
                         time::OffsetDateTime::from_unix_timestamp(
-                            end.and_hms_opt(0, 0, 0).unwrap().timestamp(),
+                            end.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(),
                         )?,
                         &interval.to_string(),
                     )
@@ -103,55 +103,61 @@ pub struct YahooResponse {
 }
 
 impl IScraperData for YahooResponse {
-    fn quotes(&self) -> Result<Quotes> {
-        let quotes = self.response.quotes()?;
-        Ok(ElementSet {
-            columns: (Column::Date, Column::Price),
-            data: quotes
-                .iter()
-                .map(|quote| Element {
-                    date: chrono::Utc
+    fn quotes(&self) -> Result<DataFrame> {
+        let (date, price): (Vec<_>, Vec<_>) = self
+            .response
+            .quotes()?
+            .iter()
+            .map(|quote| {
+                (
+                    chrono::Utc
                         .timestamp_opt(quote.timestamp as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: quote.close * self.currency_converter,
-                })
-                .collect(),
-        })
+                    quote.close * self.currency_converter,
+                )
+            })
+            .unzip();
+        Ok(df!(Column::Date.into() => date,
+        Column::Price.into() => price,)?)
     }
 
-    fn splits(&self) -> Result<Splits> {
-        let quotes = self.response.splits()?;
-        Ok(ElementSet {
-            columns: (Column::Date, Column::Qty),
-            data: quotes
-                .iter()
-                .map(|split| Element {
-                    date: chrono::Utc
+    fn splits(&self) -> Result<DataFrame> {
+        let (date, qty): (Vec<_>, Vec<_>) = self
+            .response
+            .splits()?
+            .iter()
+            .map(|split| {
+                (
+                    chrono::Utc
                         .timestamp_opt(split.date as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: split.numerator / split.denominator,
-                })
-                .collect(),
-        })
+                    split.numerator / split.denominator,
+                )
+            })
+            .unzip();
+        Ok(df!(Column::Date.into() => date,
+        Column::Qty.into() => qty,)?)
     }
 
-    fn dividends(&self) -> Result<Dividends> {
-        let quotes = self.response.dividends()?;
-        Ok(ElementSet {
-            columns: (Column::Date, Column::Price),
-            data: quotes
-                .iter()
-                .map(|div| Element {
-                    date: chrono::Utc
+    fn dividends(&self) -> Result<DataFrame> {
+        let (date, price): (Vec<_>, Vec<_>) = self
+            .response
+            .dividends()?
+            .iter()
+            .map(|div| {
+                (
+                    chrono::Utc
                         .timestamp_opt(div.date as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: div.amount,
-                })
-                .collect(),
-        })
+                    div.amount,
+                )
+            })
+            .unzip();
+        Ok(df!(Column::Date.into() => date,
+        Column::Price.into() => price,)?)
     }
 }
 
@@ -270,11 +276,11 @@ mod unittest {
             .unwrap();
 
         assert_eq!(
-            data.first().unwrap(),
-            &Element {
-                date: "2024-02-05".parse().unwrap(),
-                number: 2.8979998779296876,
-            }
+            data,
+            df! (
+                Column::Date.into() => &["2024-02-05"],
+                Column::Price.into() => &[2.8979998779296876])
+            .unwrap()
         )
     }
     #[test]
@@ -293,11 +299,11 @@ mod unittest {
             .unwrap();
 
         assert_eq!(
-            data.first().unwrap(),
-            &Element {
-                date: "2023-01-05".parse().unwrap(),
-                number: 37.47999954223633,
-            }
+            data,
+            df! (
+                Column::Date.into() => &["2023-01-05"],
+                Column::Price.into() => &[37.47999954223633],)
+            .unwrap()
         )
     }
 
@@ -307,7 +313,7 @@ mod unittest {
             .with_currency(from, to)
             .load_blocking(SearchBy::TimeRange {
                 start: "2024-02-08".parse().unwrap(),
-                end: "2024-02-09".parse().unwrap(),
+                end: "2024-02-08".parse().unwrap(),
                 interval: Interval::Day(1),
             })
             .unwrap()
@@ -315,11 +321,11 @@ mod unittest {
             .unwrap();
 
         assert_eq!(
-            data.first().unwrap(),
-            &Element {
-                date: "2024-02-08".parse().unwrap(),
-                number: expected,
-            }
+            data,
+            df! (
+                Column::Date.into() => &["2024-02-08"],
+                Column::Price.into() => &[expected],)
+            .unwrap()
         )
     }
 

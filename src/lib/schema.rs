@@ -1,7 +1,7 @@
 use strum;
 use strum_macros;
 
-#[derive(Debug, Clone, Copy, strum::IntoStaticStr)]
+#[derive(Debug, Clone, Copy, strum::IntoStaticStr, serde::Deserialize, serde::Serialize)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Column {
     Date,

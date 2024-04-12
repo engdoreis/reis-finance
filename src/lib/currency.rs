@@ -37,7 +37,13 @@ pub fn normalize(
             {
                 (
                     current_currency.to_string(),
-                    scraper.quotes().unwrap().first().unwrap().number,
+                    *utils::polars::column_f64(
+                        &scraper.quotes().unwrap(),
+                        schema::Column::Price.as_str(),
+                    )
+                    .unwrap()
+                    .first()
+                    .unwrap(),
                 )
             } else {
                 println!("Can't read currency {current_currency}");

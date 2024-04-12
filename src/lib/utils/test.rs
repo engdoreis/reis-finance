@@ -40,12 +40,15 @@ pub mod mock {
     use crate::scraper::*;
     use anyhow::Result;
     use std::collections::HashMap;
+
+    use polars::prelude::*;
+
     pub struct Scraper {
         ticker: String,
         map: HashMap<String, f64>,
     }
     pub struct ScraperData {
-        quote: Quotes,
+        quote: DataFrame,
     }
 
     impl Scraper {
@@ -85,40 +88,28 @@ pub mod mock {
 
         async fn load(&mut self, _: SearchBy) -> Result<impl IScraperData + 'static> {
             Ok(ScraperData {
-                quote: ElementSet {
-                    columns: (Column::Date, Column::Price),
-                    data: vec![Element {
-                        date: "2022-10-01".parse().unwrap(),
-                        number: *self.map.get(&self.ticker).unwrap(),
-                    }],
-                },
+                quote: df!(
+                    Column::Date.into() => ["2022-10-01"],
+                    Column::Price.into() => [*self.map.get(&self.ticker).unwrap()],)?,
             })
         }
     }
 
     impl IScraperData for ScraperData {
-        fn quotes(&self) -> Result<Quotes> {
+        fn quotes(&self) -> Result<DataFrame> {
             Ok(self.quote.clone())
         }
 
-        fn splits(&self) -> Result<Splits> {
-            Ok(ElementSet {
-                columns: (Column::Date, Column::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: 2.0,
-                }],
-            })
+        fn splits(&self) -> Result<DataFrame> {
+            Ok(df!(
+                Column::Date.into() => ["2022-10-01"],
+                Column::Amount.into() => [ 2.0])?)
         }
 
-        fn dividends(&self) -> Result<Dividends> {
-            Ok(ElementSet {
-                columns: (Column::Date, Column::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: 2.5,
-                }],
-            })
+        fn dividends(&self) -> Result<DataFrame> {
+            Ok(df!(
+                Column::Date.into() => ["2022-10-01"],
+                Column::Price.into() => [ 2.5])?)
         }
     }
 }

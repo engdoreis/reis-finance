@@ -1,8 +1,8 @@
 pub mod yahoo;
 pub use yahoo::Yahoo;
+pub use yahoo::YahooResponse;
 
 use crate::schema;
-use crate::utils;
 use anyhow::Result;
 use chrono;
 use derive_more;
@@ -19,56 +19,13 @@ pub trait IScraper {
     ) -> impl std::future::Future<Output = Result<impl IScraperData + 'static>> + Send;
 }
 
-pub trait IScraperData {
-    fn quotes(&self) -> Result<Quotes>;
-    fn splits(&self) -> Result<Splits>;
-    fn dividends(&self) -> Result<Dividends>;
+pub trait IScraperData: Send {
+    fn quotes(&self) -> Result<DataFrame>;
+    fn splits(&self) -> Result<DataFrame>;
+    fn dividends(&self) -> Result<DataFrame>;
 }
 
-pub type Quotes = ElementSet;
-pub type Splits = ElementSet;
-pub type Dividends = ElementSet;
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Element {
-    pub date: chrono::NaiveDate,
-    pub number: f64,
-}
-
-#[derive(Debug, Clone)]
-pub struct ElementSet {
-    pub columns: (schema::Column, schema::Column),
-    pub data: Vec<Element>,
-}
-
-impl std::ops::Deref for ElementSet {
-    type Target = [Element];
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-impl std::convert::TryFrom<ElementSet> for DataFrame {
-    type Error = anyhow::Error;
-    fn try_from(elem: ElementSet) -> Result<Self, Self::Error> {
-        let (c1, c2): (Vec<_>, Vec<_>) = elem
-            .data
-            .iter()
-            .map(|elem| (elem.date.to_string(), elem.number))
-            .unzip();
-        let c1_name: &str = elem.columns.0.into();
-        let c2_name: &str = elem.columns.1.into();
-        let c1 = Series::new(c1_name, c1.as_slice());
-        let c2 = Series::new(c2_name, c2.as_slice());
-
-        Ok(DataFrame::new(vec![c1, c2])?
-            .lazy()
-            .with_column(utils::polars::str_to_date(c1_name))
-            .collect()?)
-    }
-}
-
-#[derive(derive_more::Display, Debug)]
+#[derive(derive_more::Display, Debug, Clone)]
 pub enum Interval {
     #[display(fmt = "{}d", _0)]
     Day(u32),
@@ -79,6 +36,24 @@ pub enum Interval {
     #[display(fmt = "{}y", _0)]
     Year(u32),
 }
+
+impl Interval {
+    pub fn to_naive(&self) -> chrono::NaiveDate {
+        let today = chrono::Local::now().date_naive();
+        match self {
+            Interval::Day(d) => today
+                .checked_sub_days(chrono::Days::new(*d as u64))
+                .unwrap(),
+            Interval::Week(w) => today - chrono::Duration::weeks(*w as i64),
+            Interval::Month(m) => today.checked_sub_months(chrono::Months::new(*m)).unwrap(),
+            Interval::Year(y) => today
+                .checked_sub_months(chrono::Months::new(*y * 12))
+                .unwrap(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum SearchBy {
     PeriodFromNow(Interval),
     PeriodIntervalFromNow {

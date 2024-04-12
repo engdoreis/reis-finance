@@ -205,7 +205,10 @@ impl Portfolio {
             quotes.insert(
                 ticker.to_owned(),
                 if let Ok(result) = result {
-                    result.quotes().unwrap().first().unwrap().number
+                    *utils::polars::column_f64(&result.quotes()?, schema::Column::Price.as_str())
+                        .unwrap()
+                        .first()
+                        .unwrap()
                 } else {
                     println!("Can't find ticker {ticker}");
                     0.0f64
