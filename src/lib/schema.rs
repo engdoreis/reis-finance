@@ -16,6 +16,7 @@ pub enum Column {
     UninvestedCash,
     AveragePrice,
     MarketPrice,
+    MarketPriceCurrency,
     MarketValue,
     Dividends,
     DividendYield,
@@ -75,11 +76,12 @@ impl Type {
     }
 }
 
-#[derive(Debug, Default, strum::Display, strum::IntoStaticStr, strum::EnumString)]
+#[derive(Debug, Default, Clone, Copy, strum::Display, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Country {
     #[default]
     Unknown,
+    NA,
     Usa,
     Uk,
     Brazil,

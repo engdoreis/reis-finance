@@ -140,7 +140,6 @@ mod unittest {
         .sort(&[Column::Ticker.as_str()], false, false)
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 }

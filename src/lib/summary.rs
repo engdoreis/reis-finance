@@ -15,16 +15,19 @@ impl Summary {
         Ok(Summary {
             data: portfolio.into().select([
                 (col(Column::AveragePrice.into()) * col(Column::AccruedQty.into()))
+                    .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
                     .alias(Column::PortfolioCost.into()),
                 (col(Column::MarketPrice.into()) * col(Column::AccruedQty.into()))
+                    .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
                     .alias(Column::MarketValue.into()),
                 col(Column::PaperProfit.into())
+                    .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
                     .alias(Column::PaperProfit.into()),
                 col(Column::Amount.into())
-                    .filter(col(Column::Ticker.into()).eq(lit::<&str>(schema::Type::Cash.into())))
+                    .filter(col(Column::Ticker.into()).eq(lit(schema::Type::Cash.as_str())))
                     .alias(Column::UninvestedCash.into()),
             ]),
         })
@@ -39,6 +42,7 @@ impl Summary {
             profit
                 .into()
                 .select([col(Column::Profit.into())
+                    .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
                     .alias(Column::LiquidatedProfit.into())])
                 .collect()?,

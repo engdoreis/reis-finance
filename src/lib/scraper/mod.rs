@@ -1,6 +1,5 @@
 pub mod yahoo;
 pub use yahoo::Yahoo;
-pub use yahoo::YahooResponse;
 
 use crate::schema;
 use anyhow::Result;
@@ -9,20 +8,60 @@ use derive_more;
 use polars::prelude::*;
 
 pub trait IScraper {
-    fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self;
-    fn with_country(&mut self, country: schema::Country) -> &mut Self;
+    fn reset(&mut self) -> &mut Self;
+    fn with_ticker(&mut self, tickers: &[String], country: Option<&[schema::Country]>)
+        -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<impl IScraperData>;
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData>;
     fn load(
         &mut self,
         search_interval: SearchBy,
-    ) -> impl std::future::Future<Output = Result<impl IScraperData + 'static>> + Send;
+    ) -> impl std::future::Future<Output = Result<ScraperData>> + Send;
 }
 
-pub trait IScraperData: Send {
-    fn quotes(&self) -> Result<DataFrame>;
-    fn splits(&self) -> Result<DataFrame>;
-    fn dividends(&self) -> Result<DataFrame>;
+#[derive(Default, Debug)]
+pub struct ScraperData {
+    pub quotes: DataFrame,
+    pub splits: DataFrame,
+    pub dividends: DataFrame,
+}
+
+impl ScraperData {
+    pub fn new(quotes: DataFrame, splits: DataFrame, dividends: DataFrame) -> Self {
+        Self {
+            quotes,
+            splits,
+            dividends,
+        }
+    }
+
+    pub fn concat_quotes(&mut self, quotes: DataFrame) -> Result<&mut Self> {
+        self.quotes = concat(
+            [self.quotes.clone().lazy(), quotes.lazy()],
+            Default::default(),
+        )?
+        .collect()?;
+
+        Ok(self)
+    }
+
+    pub fn concat_splits(&mut self, splits: DataFrame) -> Result<&mut Self> {
+        self.splits = concat(
+            [self.splits.clone().lazy(), splits.lazy()],
+            Default::default(),
+        )?
+        .collect()?;
+        Ok(self)
+    }
+
+    pub fn concat_dividends(&mut self, dividends: DataFrame) -> Result<&mut Self> {
+        self.dividends = concat(
+            [self.dividends.clone().lazy(), dividends.lazy()],
+            Default::default(),
+        )?
+        .collect()?;
+        Ok(self)
+    }
 }
 
 #[derive(derive_more::Display, Debug, Clone)]

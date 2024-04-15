@@ -1,4 +1,5 @@
 use crate::schema;
+use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -40,6 +41,14 @@ impl Cash {
             .group_by([schema::Column::Currency.as_str()])
             .agg([col(schema::Column::Amount.into()).sum()])
             .with_column(lit(schema::Type::Cash.as_str()).alias(schema::Column::Ticker.into()))
+            .with_column(
+                utils::polars::map_str_column(schema::Column::Currency.as_str(), |element| {
+                    let currency: schema::Currency = element.unwrap().parse().unwrap();
+                    let country: schema::Country = currency.into();
+                    country.as_str()
+                })
+                .alias(schema::Column::Country.as_str()),
+            )
             .collect()?)
     }
 }
@@ -97,6 +106,7 @@ mod unittest {
                 Currency.into() => &[GBP.as_str(), USD.as_str()],
                 Amount.into() => &[ 15.43, 9350.95,],
                 Ticker.into() => &[schema::Type::Cash.as_str();2],
+                Country.into() => &["Uk", "Usa"],
             )
             .unwrap(),
             cash

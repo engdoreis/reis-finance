@@ -71,6 +71,34 @@ pub fn column_f64(df: &DataFrame, name: &str) -> Result<Vec<f64>> {
         .collect())
 }
 
+pub fn column_str<'a>(df: &'a DataFrame, name: &str) -> Result<Vec<&'a str>> {
+    Ok(df
+        .column(name)?
+        .iter()
+        .map(|value| {
+            let AnyValue::String(value) = value else {
+                panic!("Can't unwrap {value} as String");
+            };
+            value
+        })
+        .collect())
+}
+
+pub fn column_date(df: &DataFrame, name: &str) -> Result<Vec<chrono::NaiveDate>> {
+    Ok(df
+        .column(name)?
+        .iter()
+        .map(|value| {
+            let AnyValue::Date(timestamp) = value else {
+                panic!("Can't unwrap {value} as Date");
+            };
+            chrono::DateTime::from_timestamp((timestamp as i64) * 24 * 60 * 60, 0)
+                .unwrap()
+                .date_naive()
+        })
+        .collect())
+}
+
 pub mod compute {
     use crate::schema::{Action, Column::*};
     use polars::lazy::dsl::Expr;

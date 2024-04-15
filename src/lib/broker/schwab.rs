@@ -27,7 +27,8 @@ impl Schwab {
         match &collect[..] {
             ["Buy"] => Action::Buy,
             ["Sell"] => Action::Sell,
-            ["Split"] => Action::Split,
+            ["Split"] => Action::Ignore,
+            ["Reverse", "Split"] => Action::Ignore,
             ["Wire", _] => Action::Deposit,
             [_, "Div", _] => Action::Dividend,
             [_, "Dividend"] => Action::Dividend,
