@@ -142,10 +142,9 @@ impl GoogleSheet {
             &self.config.spreadsheet_tab,
             self.position.0,
             self.position.1,
-            self.position.0 + h as u32,
-            self.position.1 + w as u32,
+            h as u32,
+            w as u32,
         );
-        self.position.1 += self.config.spreadsheet_spacing + w as u32;
 
         let values: Vec<Vec<String>> = data_frame
             .get_columns()
@@ -166,6 +165,18 @@ impl GoogleSheet {
             values,
         };
 
+        tokio_test::block_on(self.spread_sheets.values_clear(
+            &self.config.spreadsheet_id,
+            &Self::cell_range(
+                &self.config.spreadsheet_tab,
+                self.position.0,
+                self.position.1,
+                1000,
+                w as u32,
+            ),
+            &sheets::types::ClearValuesRequest {},
+        ))?;
+
         tokio_test::block_on(self.spread_sheets.values_update(
             &self.config.spreadsheet_id,
             &range,
@@ -176,6 +187,7 @@ impl GoogleSheet {
             &data,
         ))?;
 
+        self.position.1 += self.config.spreadsheet_spacing + w as u32;
         Ok(())
     }
 
@@ -196,12 +208,12 @@ impl GoogleSheet {
         format!("{}{}", Self::column_name(column), row)
     }
 
-    fn cell_range(tab: &str, row: u32, column: u32, row_n: u32, column_n: u32) -> String {
+    fn cell_range(tab: &str, row: u32, column: u32, h: u32, w: u32) -> String {
         format!(
             "{}!{}:{}",
             tab,
             Self::cell_name(row, column),
-            Self::cell_name(row_n, column_n)
+            Self::cell_name(row + h, column + w)
         )
     }
 }
