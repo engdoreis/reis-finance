@@ -86,6 +86,7 @@ pub enum Country {
     Uk,
     Brazil,
     Ireland,
+    EU,
 }
 
 impl Country {
@@ -114,6 +115,7 @@ pub enum Currency {
     GBP,
     GBX,
     USD,
+    NA,
 }
 
 impl Currency {
@@ -128,6 +130,34 @@ impl Currency {
             Self::GBP => "£",
             Self::GBX => "£p",
             Self::USD => "$",
+            Self::NA => "NA",
+        }
+    }
+}
+
+impl From<Country> for Currency {
+    fn from(c: Country) -> Currency {
+        match c {
+            Country::Unknown => Currency::NA,
+            Country::NA => Currency::NA,
+            Country::Usa => Currency::USD,
+            Country::Uk => Currency::GBP,
+            Country::EU => Currency::EUR,
+            Country::Brazil => Currency::BRL,
+            Country::Ireland => Currency::GBP,
+        }
+    }
+}
+
+impl From<Currency> for Country {
+    fn from(c: Currency) -> Country {
+        match c {
+            Currency::NA => Country::NA,
+            Currency::USD => Country::Usa,
+            Currency::GBP => Country::Uk,
+            Currency::GBX => Country::Uk,
+            Currency::BRL => Country::Brazil,
+            Currency::EUR => Country::EU,
         }
     }
 }
