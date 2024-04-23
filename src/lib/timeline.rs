@@ -11,12 +11,14 @@ use polars::prelude::*;
 
 pub struct Timeline {
     orders: LazyFrame,
+    currency: schema::Currency,
 }
 
 impl Timeline {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+    pub fn from_orders(orders: impl crate::IntoLazyFrame, currency: schema::Currency) -> Self {
         Timeline {
             orders: orders.into(),
+            currency,
         }
     }
 
@@ -58,6 +60,7 @@ impl Timeline {
                 .with_quotes(scraper)?
                 .with_average_price()?
                 .with_uninvested_cash(cash.clone())
+                .normalize_currency(scraper, self.currency)?
                 .paper_profit()
                 .with_dividends(dividends.clone())
                 .with_profit()
@@ -105,7 +108,7 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
         let mut scraper = utils::test::mock::Scraper::new();
 
-        let mut result = Timeline::from_orders(orders.clone())
+        let mut result = Timeline::from_orders(orders.clone(), schema::Currency::USD)
             .summary(&mut scraper, 30, Some("2024-09-28"))
             .unwrap()
             .lazy()

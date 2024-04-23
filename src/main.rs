@@ -137,8 +137,8 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
 
         if let Some(timeline) = args.timeline {
             println!("Computing timeline...");
-            let timeline = Timeline::from_orders(orders.clone()).summary(
-                &mut yahoo_scraper,
+            let timeline = Timeline::from_orders(orders.clone(), args.currency).summary(
+                &mut scraper,
                 timeline,
                 None,
             )?;
