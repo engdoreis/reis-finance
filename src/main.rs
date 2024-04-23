@@ -73,7 +73,7 @@ fn main() -> Result<()> {
 }
 
 fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
-    let mut yahoo_scraper = Yahoo::new();
+    let mut scraper = Yahoo::new();
     let mut df = LazyFrame::default();
     for lf in orders {
         df = concat([df, lf.into_lazy()], Default::default())?;
@@ -93,10 +93,10 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
 
     println!("Computing portfolio...");
     let portfolio = Portfolio::from_orders(orders.clone())
-        .with_quotes(&mut yahoo_scraper)?
+        .with_quotes(&mut scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
-        .normalize_currency(&mut yahoo_scraper, args.currency)?
+        .normalize_currency(&mut scraper, args.currency)?
         .paper_profit()
         .with_dividends(dividends.clone())
         .with_profit()

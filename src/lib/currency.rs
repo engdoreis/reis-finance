@@ -66,20 +66,6 @@ fn _normalize(
             col(EXCHANGE_RATE),
         ]);
 
-    // When converting from == to i.e USD -> USD
-    // TODO: Maybe use fill_null on join?
-    let exchange_rate = concat(
-        [
-            exchange_rate,
-            df!(
-                schema::Column::Ticker.into() => &[currency.as_str()],
-                EXCHANGE_RATE => &[1.0],
-            )?
-            .lazy(),
-        ],
-        Default::default(),
-    )?;
-
     let cols: Vec<_> = columns
         .iter()
         .map(|column| column.clone() * col(EXCHANGE_RATE))
@@ -92,6 +78,7 @@ fn _normalize(
             [col(schema::Column::Ticker.into())],
             JoinArgs::new(JoinType::Left),
         )
+        .fill_null(lit(1)) // If not available 1.
         .with_columns(cols)
         .with_column(lit(currency.as_str()).alias(by_col))
         .select([col("*").exclude([EXCHANGE_RATE])]);
