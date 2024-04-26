@@ -1,7 +1,4 @@
-use strum;
-use strum_macros;
-
-#[derive(Debug, Clone, Copy, strum::IntoStaticStr)]
+#[derive(Debug, Clone, Copy, strum::IntoStaticStr, serde::Deserialize, serde::Serialize)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Column {
     Date,
@@ -19,6 +16,7 @@ pub enum Column {
     UninvestedCash,
     AveragePrice,
     MarketPrice,
+    MarketPriceCurrency,
     MarketValue,
     Dividends,
     DividendYield,
@@ -62,7 +60,7 @@ impl Action {
     }
 }
 
-#[derive(Debug, strum_macros::Display, strum::IntoStaticStr)]
+#[derive(Debug, strum::Display, strum::IntoStaticStr)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Type {
     Stock,
@@ -78,15 +76,17 @@ impl Type {
     }
 }
 
-#[derive(Debug, Default, strum_macros::Display, strum::IntoStaticStr, strum::EnumString)]
+#[derive(Debug, Default, Clone, Copy, strum::Display, strum::IntoStaticStr, strum::EnumString)]
 #[strum(serialize_all = "PascalCase")]
 pub enum Country {
     #[default]
     Unknown,
+    NA,
     Usa,
     Uk,
     Brazil,
     Ireland,
+    EU,
 }
 
 impl Country {
@@ -105,14 +105,7 @@ impl Country {
 }
 
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    PartialEq,
-    strum_macros::Display,
-    strum::IntoStaticStr,
-    strum::EnumString,
+    Debug, Default, Clone, Copy, PartialEq, strum::Display, strum::IntoStaticStr, strum::EnumString,
 )]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum Currency {
@@ -122,6 +115,7 @@ pub enum Currency {
     GBP,
     GBX,
     USD,
+    NA,
 }
 
 impl Currency {
@@ -136,6 +130,34 @@ impl Currency {
             Self::GBP => "£",
             Self::GBX => "£p",
             Self::USD => "$",
+            Self::NA => "NA",
+        }
+    }
+}
+
+impl From<Country> for Currency {
+    fn from(c: Country) -> Currency {
+        match c {
+            Country::Unknown => Currency::NA,
+            Country::NA => Currency::NA,
+            Country::Usa => Currency::USD,
+            Country::Uk => Currency::GBP,
+            Country::EU => Currency::EUR,
+            Country::Brazil => Currency::BRL,
+            Country::Ireland => Currency::GBP,
+        }
+    }
+}
+
+impl From<Currency> for Country {
+    fn from(c: Currency) -> Country {
+        match c {
+            Currency::NA => Country::NA,
+            Currency::USD => Country::Usa,
+            Currency::GBP => Country::Uk,
+            Currency::GBX => Country::Uk,
+            Currency::BRL => Country::Brazil,
+            Currency::EUR => Country::EU,
         }
     }
 }

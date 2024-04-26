@@ -38,6 +38,10 @@ struct Args {
     /// The currency to be used
     #[arg(short, long, value_parser =  schema::Currency::from_str, default_value = "USD")]
     currency: schema::Currency,
+
+    /// Whether to print the report or not.
+    #[arg(short, long, default_value = "false")]
+    show: bool,
 }
 
 fn main() -> Result<()> {
@@ -50,11 +54,13 @@ fn main() -> Result<()> {
     let mut orders: Vec<DataFrame> = Vec::new();
 
     if let Some(schwab_orders) = &args.schwab_orders {
+        println!("Loading schwab orders...");
         let broker = Schwab::default();
         orders.push(broker.load_from_dir(schwab_orders.as_path())?);
     }
 
     if let Some(trading212_orders) = &args.trading212_orders {
+        println!("Loading trading 212 orders...");
         let broker = Trading212::default();
         orders.push(broker.load_from_dir(trading212_orders.as_path())?);
     }
@@ -67,7 +73,7 @@ fn main() -> Result<()> {
 }
 
 fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
-    let mut yahoo_scraper = Yahoo::new();
+    let mut scraper = Yahoo::new();
     let mut df = LazyFrame::default();
     for lf in orders {
         df = concat([df, lf.into_lazy()], Default::default())?;
@@ -77,22 +83,20 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         .collect()
         .unwrap()
         .lazy();
-    // dbg!(orders
-    //     .clone()
-    //     // .filter(col(reis_finance_lib::schema::Columns::Ticker.into()).eq(lit("BIL")))
-    //     .collect()
-    //     .unwrap());
 
+    println!("Computing dividends...");
     let dividends = Dividends::from_orders(orders.clone()).by_ticker().unwrap();
+    println!("Computing uninvested cash...");
     let cash = uninvested::Cash::from_orders(orders.clone())
         .collect()
         .unwrap();
 
+    println!("Computing portfolio...");
     let portfolio = Portfolio::from_orders(orders.clone())
-        .with_quotes(&mut yahoo_scraper)?
+        .with_quotes(&mut scraper)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
-        .normalize_currency(&mut yahoo_scraper, args.currency)?
+        .normalize_currency(&mut scraper, args.currency)?
         .paper_profit()
         .with_dividends(dividends.clone())
         .with_profit()
@@ -100,33 +104,48 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         .round(2)
         .collect()?;
 
+    println!("Computing profit...");
     let profit = liquidated::Profit::from_orders(orders.clone())?.collect()?;
 
+    println!("Computing summary...");
     let summary = Summary::from_portfolio(portfolio.clone())?
         .with_dividends(dividends)?
         .with_capital_invested(orders.clone())?
         .with_liquidated_profit(profit.clone())?
         .collect()?;
-    println!("{}", &summary);
 
-    println!("{}", &portfolio);
-
+    println!("Pivoting profit...");
     let profit_pivot = liquidated::Profit::from_orders(orders.clone())?.pivot()?;
-    dbg!(&profit_pivot);
-
+    println!("Pivoting dividends...");
     let div_pivot = Dividends::from_orders(orders.clone()).pivot()?;
-    dbg!(&div_pivot);
-    let mut sheet = GoogleSheet::new()?;
-    sheet.update_sheets(&summary)?;
-    sheet.update_sheets(&portfolio)?;
-    sheet.update_sheets(&profit_pivot)?;
-    sheet.update_sheets(&div_pivot)?;
 
-    if let Some(timeline) = args.timeline {
-        let timeline =
-            Timeline::from_orders(orders.clone()).summary(&mut yahoo_scraper, timeline, None)?;
-        sheet.update_sheets(&timeline)?;
+    if args.show {
+        dbg!(&summary);
+        dbg!(&portfolio);
+        dbg!(&profit_pivot);
+        dbg!(&div_pivot);
+    } else {
+        let mut sheet = GoogleSheet::new()?;
+        println!("Uploading summary...");
+        sheet.update_sheets(&summary)?;
+        println!("Uploading portfolio...");
+        sheet.update_sheets(&portfolio)?;
+        println!("Uploading profit...");
+        sheet.update_sheets(&profit_pivot)?;
+        println!("Uploading dividends...");
+        sheet.update_sheets(&div_pivot)?;
+
+        if let Some(timeline) = args.timeline {
+            println!("Computing timeline...");
+            let timeline = Timeline::from_orders(orders.clone(), args.currency).summary(
+                &mut scraper,
+                timeline,
+                None,
+            )?;
+            println!("Uploading timeline...");
+            sheet.update_sheets(&timeline)?;
+        }
     }
+
     Ok(())
-    // dbg!(timeline);
 }

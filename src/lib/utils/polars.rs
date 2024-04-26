@@ -71,10 +71,38 @@ pub fn column_f64(df: &DataFrame, name: &str) -> Result<Vec<f64>> {
         .collect())
 }
 
+pub fn column_str<'a>(df: &'a DataFrame, name: &str) -> Result<Vec<&'a str>> {
+    Ok(df
+        .column(name)?
+        .iter()
+        .map(|value| {
+            let AnyValue::String(value) = value else {
+                panic!("Can't unwrap {value} as String");
+            };
+            value
+        })
+        .collect())
+}
+
+pub fn column_date(df: &DataFrame, name: &str) -> Result<Vec<chrono::NaiveDate>> {
+    Ok(df
+        .column(name)?
+        .iter()
+        .map(|value| {
+            let AnyValue::Date(timestamp) = value else {
+                panic!("Can't unwrap {value} as Date");
+            };
+            chrono::DateTime::from_timestamp((timestamp as i64) * 24 * 60 * 60, 0)
+                .unwrap()
+                .date_naive()
+        })
+        .collect())
+}
+
 pub mod compute {
     use crate::schema::{Action, Column::*};
+    use polars::lazy::dsl::Expr;
     use polars::prelude::*;
-    use polars_lazy::dsl::Expr;
 
     pub fn paper_profit_rate() -> Expr {
         ((col(MarketPrice.into()) / col(AveragePrice.into()) - lit(1)) * lit(100))
@@ -142,8 +170,8 @@ pub mod compute {
 
 pub mod filter {
     use crate::schema::{Action::*, Column::*};
+    use polars::lazy::dsl::Expr;
     use polars::prelude::*;
-    use polars_lazy::dsl::Expr;
 
     pub fn buy() -> Expr {
         col(Action.into()).eq(lit(Buy.as_str()))
@@ -175,8 +203,8 @@ pub mod filter {
 pub mod transform {
     use crate::schema::Column;
     use anyhow::Result;
+    use polars::lazy::dsl::dtype_col;
     use polars::prelude::*;
-    use polars_lazy::dsl::dtype_col;
     use polars_ops::pivot::{pivot, PivotAgg};
 
     pub fn pivot_year_months(data: &LazyFrame, value_columns: &[&str]) -> Result<LazyFrame> {

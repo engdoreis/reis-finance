@@ -7,15 +7,10 @@ use yahoo_finance_api as yahoo;
 
 use super::*;
 
-pub struct YahooResponse {
-    response: yahoo::YResponse,
-    currency_converter: f64,
-}
-
 pub struct Yahoo {
-    ticker: String,
+    tickers: Vec<String>,
+    countries: Vec<schema::Country>,
     provider: yahoo::YahooConnector,
-    currency_converter: f64,
 }
 
 impl Default for Yahoo {
@@ -27,131 +22,185 @@ impl Default for Yahoo {
 impl Yahoo {
     pub fn new() -> Self {
         Self {
-            ticker: "".to_string(),
+            tickers: Vec::new(),
+            countries: Vec::new(),
             provider: yahoo::YahooConnector::new(),
-            currency_converter: 1.0,
         }
     }
-}
 
-impl IScraper for Yahoo {
-    fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
-        self.ticker = ticker.into();
-        self
-    }
-
-    fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
-        self.ticker = format!("{}{}=x", from.as_str(), to.as_str(),);
-        self
-    }
-
-    fn with_country(&mut self, country: schema::Country) -> &mut Self {
-        let (sufix, multiplier) = match country {
+    fn map_country(country: &schema::Country) -> (&'static str, f64) {
+        match country {
             schema::Country::Usa => ("", 1.0),
             schema::Country::Uk => (".L", 0.01),
             schema::Country::Brazil => (".SA", 1.0),
             schema::Country::Ireland => (".L", 1.0),
+            schema::Country::NA => ("", 1.0),
+            schema::Country::EU => todo!(),
             schema::Country::Unknown => panic!("Country must be known"),
+        }
+    }
+
+    fn quotes(
+        &self,
+        response: &yahoo::YResponse,
+        ticker: &str,
+        country: schema::Country,
+        multiplier: f64,
+    ) -> Result<DataFrame> {
+        let ticker = if ticker.contains("=x") {
+            let ticker = ticker.replace("=x", "");
+            let (from, to) = ticker.split_at(3);
+            format!("{from}/{to}")
+        } else {
+            ticker.to_owned()
         };
-        self.ticker += sufix;
-        self.currency_converter = multiplier;
-        self
-    }
-
-    fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData> {
-        tokio_test::block_on(self.load(search_interval))
-    }
-
-    async fn load<'a, 'b>(&'a self, search_interval: SearchBy) -> Result<impl IScraperData + 'b> {
-        let ticker = self.ticker.clone();
-        let response = match search_interval {
-            SearchBy::PeriodFromNow(range) => {
-                self.provider
-                    .get_quote_range(&ticker, &Interval::Day(1).to_string(), &range.to_string())
-                    .await
-            }
-            SearchBy::PeriodIntervalFromNow { range, interval } => {
-                self.provider
-                    .get_quote_range(&ticker, &interval.to_string(), &range.to_string())
-                    .await
-            }
-            SearchBy::TimeRange {
-                start,
-                end,
-                interval,
-            } => {
-                self.provider
-                    .get_quote_history_interval(
-                        &ticker,
-                        time::OffsetDateTime::from_unix_timestamp(
-                            start.and_hms_opt(0, 0, 0).unwrap().timestamp(),
-                        )?,
-                        time::OffsetDateTime::from_unix_timestamp(
-                            end.and_hms_opt(0, 0, 0).unwrap().timestamp(),
-                        )?,
-                        &interval.to_string(),
-                    )
-                    .await
-            }
-        }?;
-
-        Ok(YahooResponse {
-            response,
-            currency_converter: self.currency_converter,
-        })
-    }
-}
-
-impl IScraperData for YahooResponse {
-    fn quotes(&self) -> Result<Quotes> {
-        let quotes = self.response.quotes()?;
-        Ok(ElementSet {
-            columns: (Column::Date, Column::Price),
-            data: quotes
-                .iter()
-                .map(|quote| Element {
-                    date: chrono::Utc
+        let currency: schema::Currency = country.into();
+        let (date, price, currency): (Vec<_>, Vec<_>, Vec<_>) =
+            itertools::multiunzip(response.quotes()?.iter().map(|quote| {
+                (
+                    chrono::Utc
                         .timestamp_opt(quote.timestamp as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: quote.close * self.currency_converter,
-                })
-                .collect(),
-        })
+                    quote.close * multiplier,
+                    currency.as_str(),
+                )
+            }));
+        let len = date.len();
+        Ok(df!(Column::Date.into() => date,
+            Column::Ticker.into() => vec![ticker; len],
+            Column::Price.into() => price,
+            Column::Currency.into() => currency,
+        )?)
     }
 
-    fn splits(&self) -> Result<Splits> {
-        let quotes = self.response.splits()?;
-        Ok(ElementSet {
-            columns: (Column::Date, Column::Qty),
-            data: quotes
-                .iter()
-                .map(|split| Element {
-                    date: chrono::Utc
+    fn splits(&self, response: &yahoo::YResponse, ticker: &str) -> Result<DataFrame> {
+        let (date, qty): (Vec<_>, Vec<_>) = response
+            .splits()?
+            .iter()
+            .map(|split| {
+                (
+                    chrono::Utc
                         .timestamp_opt(split.date as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: split.numerator / split.denominator,
-                })
-                .collect(),
-        })
+                    split.numerator / split.denominator,
+                )
+            })
+            .unzip();
+
+        let len = date.len();
+        Ok(df!(Column::Date.into() => date,
+        Column::Ticker.into() => vec![ticker; len],
+        Column::Qty.into() => qty,)?)
     }
 
-    fn dividends(&self) -> Result<Dividends> {
-        let quotes = self.response.dividends()?;
-        Ok(ElementSet {
-            columns: (Column::Date, Column::Price),
-            data: quotes
-                .iter()
-                .map(|div| Element {
-                    date: chrono::Utc
+    fn dividends(
+        &self,
+        response: &yahoo::YResponse,
+        ticker: &str,
+        country: schema::Country,
+    ) -> Result<DataFrame> {
+        let currency: schema::Currency = country.into();
+        let (date, price, currency): (Vec<_>, Vec<_>, Vec<_>) =
+            itertools::multiunzip(response.dividends()?.iter().map(|div| {
+                (
+                    chrono::Utc
                         .timestamp_opt(div.date as i64, 0)
                         .unwrap()
                         .date_naive(),
-                    number: div.amount,
-                })
-                .collect(),
-        })
+                    div.amount,
+                    currency.as_str(),
+                )
+            }));
+
+        let len = date.len();
+        Ok(df!(Column::Date.into() => date,
+            Column::Ticker.into() => vec![ticker; len],
+            Column::Price.into() => price,
+            Column::Currency.into() => currency,
+        )?)
+    }
+}
+
+impl IScraper for Yahoo {
+    fn reset(&mut self) -> &mut Self {
+        self.countries.clear();
+        self.tickers.clear();
+        self
+    }
+
+    fn with_ticker(
+        &mut self,
+        tickers: &[String],
+        countries: Option<&[schema::Country]>,
+    ) -> &mut Self {
+        self.tickers.extend_from_slice(tickers);
+        self.countries
+            .extend_from_slice(countries.unwrap_or(&vec![schema::Country::Usa; tickers.len()]));
+
+        self
+    }
+
+    fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
+        let symbol = format!("{}{}=x", from.as_str(), to.as_str(),);
+        if !self.tickers.contains(&symbol) {
+            self.tickers.push(symbol);
+            self.countries.push(schema::Country::NA);
+        }
+        self
+    }
+
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData> {
+        tokio_test::block_on(self.load(search_interval))
+    }
+
+    async fn load(&mut self, search_interval: SearchBy) -> Result<ScraperData> {
+        let mut data = ScraperData::default();
+        for (ticker, country) in self.tickers.iter().zip(self.countries.iter()) {
+            let (suffix, multiplier) = Self::map_country(country);
+            let symbol = format!("{}{}", ticker, suffix);
+
+            let response = match search_interval {
+                SearchBy::PeriodFromNow(ref range) => {
+                    self.provider
+                        .get_quote_range(&symbol, &Interval::Day(1).to_string(), &range.to_string())
+                        .await
+                }
+                SearchBy::PeriodIntervalFromNow {
+                    ref range,
+                    ref interval,
+                } => {
+                    self.provider
+                        .get_quote_range(&symbol, &interval.to_string(), &range.to_string())
+                        .await
+                }
+                SearchBy::TimeRange {
+                    start,
+                    end,
+                    ref interval,
+                } => {
+                    self.provider
+                        .get_quote_history_interval(
+                            &symbol,
+                            time::OffsetDateTime::from_unix_timestamp(
+                                start.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(),
+                            )?,
+                            time::OffsetDateTime::from_unix_timestamp(
+                                end.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(),
+                            )?,
+                            &interval.to_string(),
+                        )
+                        .await
+                }
+            }?;
+            data.concat_quotes(self.quotes(&response, ticker, country.to_owned(), multiplier)?)?
+                .concat_splits(self.splits(&response, ticker)?)?
+                .concat_dividends(self.dividends(&response, ticker, country.to_owned())?)?;
+        }
+
+        self.reset();
+        Ok(data)
     }
 }
 
@@ -169,7 +218,7 @@ mod unittest {
 
         let mut yh = Yahoo::new();
         let data = yh
-            .with_ticker("AAPL")
+            .with_ticker(&["AAPL".to_owned()], None)
             .load_blocking(SearchBy::TimeRange {
                 start: "2023-08-06".parse().unwrap(),
                 end: "2024-01-06".parse().unwrap(),
@@ -177,7 +226,7 @@ mod unittest {
             })
             .unwrap();
 
-        let mut quotes = data.quotes().unwrap().try_into().unwrap();
+        let mut quotes = data.quotes;
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -200,7 +249,7 @@ mod unittest {
 
         let mut yh = Yahoo::new();
         let data = yh
-            .with_ticker("GOOGL")
+            .with_ticker(&["GOOGL".to_owned()], None)
             .load_blocking(SearchBy::TimeRange {
                 start: "2022-01-06".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),
@@ -208,7 +257,7 @@ mod unittest {
             })
             .unwrap();
 
-        let mut splits = data.splits().unwrap().try_into().unwrap();
+        let mut splits = data.splits;
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -231,7 +280,7 @@ mod unittest {
 
         let mut yh = Yahoo::new();
         let data = yh
-            .with_ticker("AAPL")
+            .with_ticker(&["AAPL".to_owned()], None)
             .load_blocking(SearchBy::TimeRange {
                 start: "2022-01-06".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),
@@ -239,7 +288,7 @@ mod unittest {
             })
             .unwrap();
 
-        let mut div = data.dividends().unwrap().try_into().unwrap();
+        let mut div = data.dividends;
         let mut file = File::create(output).expect("could not create file");
         CsvWriter::new(&mut file)
             .include_header(true)
@@ -258,46 +307,46 @@ mod unittest {
     fn get_quotes_with_country_uk_success() {
         let mut yh = Yahoo::new();
         let data = yh
-            .with_ticker("TSCO")
-            .with_country(schema::Country::Uk)
+            .with_ticker(&["TSCO".to_owned()], Some(&[schema::Country::Uk]))
             .load_blocking(SearchBy::TimeRange {
                 start: "2024-02-05".parse().unwrap(),
                 end: "2024-02-06".parse().unwrap(),
                 interval: Interval::Day(1),
             })
             .unwrap()
-            .quotes()
-            .unwrap();
+            .quotes;
 
         assert_eq!(
-            data.first().unwrap(),
-            &Element {
-                date: "2024-02-05".parse().unwrap(),
-                number: 2.8979998779296876,
-            }
+            data,
+            df! (
+                Column::Date.into() => &["2024-02-05"],
+                Column::Ticker.into() => &["TSCO"],
+                Column::Price.into() => &[2.8979998779296876],
+                Column::Currency.into() => &["GBP"],)
+            .unwrap()
         )
     }
     #[test]
     fn get_quotes_with_country_br_success() {
         let mut yh = Yahoo::new();
         let data = yh
-            .with_ticker("WEGE3")
-            .with_country(schema::Country::Brazil)
+            .with_ticker(&["WEGE3".to_owned()], Some(&[schema::Country::Brazil]))
             .load_blocking(SearchBy::TimeRange {
                 start: "2023-01-05".parse().unwrap(),
                 end: "2023-01-06".parse().unwrap(),
                 interval: Interval::Day(1),
             })
             .unwrap()
-            .quotes()
-            .unwrap();
+            .quotes;
 
         assert_eq!(
-            data.first().unwrap(),
-            &Element {
-                date: "2023-01-05".parse().unwrap(),
-                number: 37.47999954223633,
-            }
+            data,
+            df! (
+                Column::Date.into() => &["2023-01-05"],
+                Column::Ticker.into() => &["WEGE3"],
+                Column::Price.into() => &[37.47999954223633],
+                Column::Currency.into() => &["BRL"],)
+            .unwrap()
         )
     }
 
@@ -307,19 +356,20 @@ mod unittest {
             .with_currency(from, to)
             .load_blocking(SearchBy::TimeRange {
                 start: "2024-02-08".parse().unwrap(),
-                end: "2024-02-09".parse().unwrap(),
+                end: "2024-02-08".parse().unwrap(),
                 interval: Interval::Day(1),
             })
             .unwrap()
-            .quotes()
-            .unwrap();
+            .quotes;
 
         assert_eq!(
-            data.first().unwrap(),
-            &Element {
-                date: "2024-02-08".parse().unwrap(),
-                number: expected,
-            }
+            data,
+            df! (
+                Column::Date.into() => &["2024-02-08"],
+                Column::Ticker.into() => &[format!("{}/{}", from.as_str(), to.as_str(),)],
+                Column::Price.into() => &[expected],
+                Column::Currency.into() => &["NA"],)
+            .unwrap()
         )
     }
 

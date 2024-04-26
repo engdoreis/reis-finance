@@ -1,8 +1,8 @@
 use crate::schema::{self, Action};
 use crate::utils;
 use anyhow::Result;
+use polars::lazy::dsl::as_struct;
 use polars::prelude::*;
-use polars_lazy::dsl::as_struct;
 use std::str::FromStr;
 
 pub struct AverageCost {
@@ -140,7 +140,6 @@ mod unittest {
         .sort(&[Column::Ticker.as_str()], false, false)
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 }

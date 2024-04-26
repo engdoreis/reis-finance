@@ -34,24 +34,25 @@ pub mod fs {
 
 pub mod mock {
 
-    use crate::schema;
     use crate::schema::Column;
-    use crate::schema::Country;
+    use crate::schema::{self, Currency};
     use crate::scraper::*;
     use anyhow::Result;
     use std::collections::HashMap;
+
+    use polars::prelude::*;
+
     pub struct Scraper {
-        ticker: String,
+        tickers: Vec<String>,
+        countries: Vec<schema::Country>,
         map: HashMap<String, f64>,
-    }
-    pub struct ScraperData {
-        quote: Quotes,
     }
 
     impl Scraper {
         pub fn new() -> Self {
             Scraper {
-                ticker: "".into(),
+                tickers: Vec::new(),
+                countries: Vec::new(),
                 map: HashMap::from([
                     ("GOOGL".into(), 33.87),
                     ("APPL".into(), 103.95),
@@ -65,60 +66,73 @@ pub mod mock {
     }
 
     impl IScraper for Scraper {
-        fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self {
-            self.ticker = ticker.into();
-            self
-        }
+        fn with_ticker(
+            &mut self,
+            tickers: &[String],
+            countries: Option<&[schema::Country]>,
+        ) -> &mut Self {
+            self.tickers.extend_from_slice(tickers);
 
-        fn with_country(&mut self, _country: Country) -> &mut Self {
+            self.countries
+                .extend_from_slice(countries.unwrap_or(&vec![schema::Country::Usa; tickers.len()]));
             self
         }
 
         fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self {
-            self.ticker = format!("{}/{}", from, to);
+            self.tickers.push(format!("{}/{}", from, to));
+            self.countries.push(schema::Country::NA);
             self
         }
 
-        fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData> {
+        fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData> {
             tokio_test::block_on(self.load(search_interval))
         }
 
-        async fn load<'a, 'b>(&'a self, _: SearchBy) -> Result<impl IScraperData + 'b> {
-            Ok(ScraperData {
-                quote: ElementSet {
-                    columns: (Column::Date, Column::Price),
-                    data: vec![Element {
-                        date: "2022-10-01".parse().unwrap(),
-                        number: *self.map.get(&self.ticker).unwrap(),
-                    }],
-                },
-            })
-        }
-    }
+        async fn load(&mut self, _: SearchBy) -> Result<ScraperData> {
+            let len = self.tickers.len();
+            let prices: Vec<_> = self
+                .tickers
+                .iter()
+                .map(|x| {
+                    *self
+                        .map
+                        .get(x)
+                        .expect(&format!("{x} not found in {:?}", self.map))
+                })
+                .collect();
 
-    impl IScraperData for ScraperData {
-        fn quotes(&self) -> Result<Quotes> {
-            Ok(self.quote.clone())
+            let currencies: Vec<_> = self
+                .countries
+                .iter()
+                .map(|x| {
+                    let currency: Currency = x.clone().into();
+                    currency.as_str()
+                })
+                .collect();
+
+            let data = ScraperData::new(
+                df!(
+                    Column::Date.into() => vec!["2022-10-01"; len],
+                    Column::Ticker.into() => &self.tickers,
+                    Column::Price.into() => prices,
+                    Column::Currency.into() => currencies,
+                )
+                .unwrap()
+                .lazy()
+                .with_column(col(Column::Date.into()).cast(DataType::Date))
+                .collect()
+                .unwrap(),
+                DataFrame::default(),
+                DataFrame::default(),
+            );
+            self.reset();
+            Ok(data)
         }
 
-        fn splits(&self) -> Result<Splits> {
-            Ok(ElementSet {
-                columns: (Column::Date, Column::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: 2.0,
-                }],
-            })
-        }
-
-        fn dividends(&self) -> Result<Dividends> {
-            Ok(ElementSet {
-                columns: (Column::Date, Column::Price),
-                data: vec![Element {
-                    date: "2022-10-01".parse().unwrap(),
-                    number: 2.5,
-                }],
-            })
+        fn reset(&mut self) -> &mut Self {
+            self.tickers.clear();
+            self.countries.clear();
+            self
         }
     }
 }

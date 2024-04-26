@@ -1,24 +1,24 @@
 use crate::currency;
 use crate::perpetual_inventory::AverageCost;
 use crate::schema;
-use crate::scraper::{self, IScraper, IScraperData};
+use crate::scraper::{self, IScraper, ScraperData};
 use crate::utils;
 use anyhow::Result;
+use polars::lazy::dsl::dtype_col;
 use polars::prelude::*;
-use polars_lazy::dsl::dtype_col;
 use std::str::FromStr;
 
-use std::collections::HashMap;
-
 pub struct Portfolio {
-    orders: LazyFrame,
-    data: LazyFrame,
+    raw_input: LazyFrame,
+    working_frame: LazyFrame,
+    uninvested_cash: Option<LazyFrame>,
+    loaded_data: Option<ScraperData>,
 }
 
 impl Portfolio {
     pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
-        let orders: LazyFrame = orders.into();
-        let result = orders
+        let raw_input: LazyFrame = orders.into();
+        let result = raw_input
             .clone()
             // Filter buy and sell actions.
             .filter(utils::polars::filter::buy_or_sell())
@@ -39,31 +39,74 @@ impl Portfolio {
             .sort(schema::Column::Ticker.into(), SortOptions::default());
 
         Portfolio {
-            data: result,
-            orders,
+            working_frame: result,
+            raw_input,
+            uninvested_cash: None,
+            loaded_data: None,
         }
     }
 
     pub fn with_quotes(mut self, scraper: &mut impl IScraper) -> Result<Self> {
-        let result = self.data.collect()?;
+        let loaded_data = tokio_test::block_on(self.load(scraper))?;
 
-        let quotes = tokio_test::block_on(Self::quotes(scraper, &result))?;
+        let quotes = loaded_data
+            .quotes
+            .clone()
+            .lazy()
+            .with_column(
+                col(schema::Column::Currency.as_str())
+                    .alias(schema::Column::MarketPriceCurrency.as_str()),
+            )
+            .group_by([
+                col(schema::Column::Ticker.as_str()),
+                col(schema::Column::MarketPriceCurrency.as_str()),
+            ])
+            .agg([col(schema::Column::Price.as_str())
+                .sort_by([col(schema::Column::Date.as_str())], [true])
+                .first()
+                .alias(schema::Column::MarketPrice.into())]);
+        let result = self.working_frame.collect()?;
 
-        let result = result.lazy().with_column(
-            utils::polars::map_column_str_to_f64(schema::Column::Ticker.into(), quotes)
-                .alias(schema::Column::MarketPrice.into()),
-        );
-        self.data = result;
+        let match_on: Vec<_> = [schema::Column::Ticker]
+            .iter()
+            .map(|x| col(x.as_str()))
+            .collect();
+        self.working_frame = result
+            .lazy()
+            // Join the quotes
+            .join(quotes, &match_on, &match_on, JoinArgs::new(JoinType::Left))
+            .fill_null(0f64);
+
+        if loaded_data.splits.shape().1 > 0 {
+            let splits = loaded_data.splits.clone().lazy().select([
+                col(schema::Column::Date.as_str()),
+                lit(schema::Action::Split.as_str()).alias(schema::Column::Action.as_str()),
+                col(schema::Column::Ticker.as_str()),
+                col(schema::Column::Qty.as_str()),
+                lit(0.0).alias(schema::Column::Price.as_str()),
+                lit(0.0).alias(schema::Column::Amount.as_str()),
+                lit(0.0).alias(schema::Column::Tax.as_str()),
+                lit(0.0).alias(schema::Column::Commission.as_str()),
+                lit(schema::Country::NA.as_str()).alias(schema::Column::Country.as_str()),
+                lit(schema::Currency::USD.as_str()).alias(schema::Column::Currency.as_str()),
+                lit(schema::Type::Stock.as_str()).alias(schema::Column::Type.as_str()),
+            ]);
+            self.raw_input = concat([self.raw_input, splits], Default::default())?
+                .sort(schema::Column::Date.as_str(), Default::default());
+        }
+
+        self.loaded_data = Some(loaded_data);
         Ok(self)
     }
 
     pub fn with_average_price(mut self) -> Result<Self> {
-        let avg = AverageCost::from_orders(self.orders.clone())
+        let avg = AverageCost::from_orders(self.raw_input.clone())
             .with_cumulative()
-            .collect_latest()?;
+            .collect_latest()
+            .expect("Average cost failed");
 
-        self.data = self
-            .data
+        self.working_frame = self
+            .working_frame
             .join(
                 avg.lazy(),
                 [col(schema::Column::Ticker.into())],
@@ -85,25 +128,25 @@ impl Portfolio {
     }
 
     pub fn paper_profit(mut self) -> Self {
-        self.data = self.data.with_columns([
+        self.working_frame = self.working_frame.with_columns([
             utils::polars::compute::market_value(),
-            utils::polars::compute::paper_profit_rate(),
             utils::polars::compute::paper_profit(),
+            utils::polars::compute::paper_profit_rate(),
         ]);
         self
     }
 
     pub fn with_profit(mut self) -> Self {
-        self.data = self
-            .data
+        self.working_frame = self
+            .working_frame
             .with_column(utils::polars::compute::profit())
             .with_column(utils::polars::compute::profit_rate());
         self
     }
 
     pub fn with_dividends(mut self, dividends: DataFrame) -> Self {
-        self.data = self
-            .data
+        self.working_frame = self
+            .working_frame
             .join(
                 dividends.lazy(),
                 [col(schema::Column::Ticker.into())],
@@ -115,6 +158,11 @@ impl Portfolio {
     }
 
     pub fn with_uninvested_cash(mut self, cash: DataFrame) -> Self {
+        self.uninvested_cash = Some(cash.lazy());
+        self
+    }
+
+    fn merge_uninvested_cash(&mut self, frame: LazyFrame) {
         let match_on: Vec<_> = [
             schema::Column::Ticker,
             schema::Column::Amount,
@@ -124,22 +172,23 @@ impl Portfolio {
         .map(|x| col(x.as_str()))
         .collect();
 
-        self.data = self
-            .data
+        self.working_frame = self
+            .working_frame
+            .clone()
             .join(
-                cash.lazy(),
+                frame,
                 match_on.clone(),
                 match_on,
                 JoinArgs::new(JoinType::Outer { coalesce: true }),
             )
             .with_column(col(schema::Column::AccruedQty.into()).fill_null(lit(1)))
             .fill_null(col(schema::Column::Amount.into()));
-
-        self
     }
 
     pub fn with_allocation(mut self) -> Self {
-        self.data = self.data.with_column(utils::polars::compute::allocation());
+        self.working_frame = self
+            .working_frame
+            .with_column(utils::polars::compute::allocation());
         self
     }
 
@@ -148,72 +197,134 @@ impl Portfolio {
         scraper: &mut impl IScraper,
         currency: schema::Currency,
     ) -> Result<Self> {
-        self.data = currency::normalize(
-            self.data.clone(),
-            &[dtype_col(&DataType::Float64).exclude([schema::Column::AccruedQty.as_str()])],
+        let mut frame = currency::normalize(
+            self.working_frame.clone(),
+            schema::Column::Currency.as_str(),
+            &[dtype_col(&DataType::Float64).exclude([
+                schema::Column::AccruedQty.as_str(),
+                schema::Column::MarketPrice.as_str(),
+            ])],
             currency,
             scraper,
-        )?
-        .group_by([
-            schema::Column::Ticker.as_str(),
-            schema::Column::Currency.as_str(),
-        ])
-        .agg([
-            col(schema::Column::Amount.as_str()).sum(),
-            col(schema::Column::AccruedQty.as_str()).first(),
-            col(schema::Column::MarketPrice.as_str()).first(),
-            (col(schema::Column::AveragePrice.as_str()) * col(schema::Column::AccruedQty.as_str()))
+        )?;
+
+        frame = currency::normalize(
+            frame,
+            schema::Column::MarketPriceCurrency.as_str(),
+            &[col(schema::Column::MarketPrice.as_str())],
+            currency,
+            scraper,
+        )?;
+
+        frame = frame
+            .group_by([
+                schema::Column::Ticker.as_str(),
+                schema::Column::Currency.as_str(),
+            ])
+            .agg([
+                col(schema::Column::Amount.as_str()).sum(),
+                col(schema::Column::AccruedQty.as_str()).sum(),
+                col(schema::Column::MarketPrice.as_str()).first(),
+                (col(schema::Column::AveragePrice.as_str())
+                    * col(schema::Column::AccruedQty.as_str()))
                 .sum()
-                / col(schema::Column::AccruedQty.as_str()).sum(),
-        ]);
+                    / col(schema::Column::AccruedQty.as_str()).sum(),
+            ]);
+
+        self.working_frame = frame;
+
+        if let Some(frame) = self.uninvested_cash.take() {
+            let mut normalized = currency::normalize(
+                frame,
+                schema::Column::Currency.as_str(),
+                &[dtype_col(&DataType::Float64)],
+                currency,
+                scraper,
+            )?;
+            normalized = normalized
+                .group_by([
+                    schema::Column::Ticker.as_str(),
+                    schema::Column::Currency.as_str(),
+                ])
+                .agg([col(schema::Column::Amount.as_str()).sum()]);
+            self.merge_uninvested_cash(normalized);
+        }
+
         Ok(self)
     }
 
     pub fn round(mut self, decimals: u32) -> Self {
-        self.data = self
-            .data
+        self.working_frame = self
+            .working_frame
             .with_column(dtype_col(&DataType::Float64).round(decimals));
         self
     }
 
-    pub fn collect(self) -> Result<DataFrame> {
-        let exclude: &[&str] = &[schema::Column::Country.into(), "^.*_right$"];
-        Ok(self.data.select([col("*").exclude(exclude)]).collect()?)
-    }
-
-    async fn quotes<T: IScraper>(scraper: &mut T, df: &DataFrame) -> Result<HashMap<String, f64>> {
-        let data = df.columns([
-            schema::Column::Ticker.as_str(),
-            schema::Column::Country.as_str(),
-        ])?;
-
-        let mut quotes: HashMap<String, f64> = HashMap::new();
-        for (ticker, country) in data[0].iter().zip(data[1].iter()) {
-            let AnyValue::String(ticker) = ticker else {
-                panic!("Can't unwrap ticker from: {ticker}");
-            };
-            let AnyValue::String(country) = country else {
-                panic!("Can't unwrap country from: {country}");
-            };
-
-            let result = scraper
-                .with_ticker(ticker)
-                .with_country(schema::Country::from_str(country).unwrap())
-                .load(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))
-                .await;
-
-            quotes.insert(
-                ticker.to_owned(),
-                if let Ok(result) = result {
-                    result.quotes().unwrap().first().unwrap().number
-                } else {
-                    println!("Can't find ticker {ticker}");
-                    0.0f64
-                },
-            );
+    pub fn collect(mut self) -> Result<DataFrame> {
+        if let Some(frame) = self.uninvested_cash.take() {
+            self.merge_uninvested_cash(frame);
         }
 
-        Ok(quotes)
+        let exclude: &[&str] = &[schema::Column::Country.into(), "^.*_right$"];
+        Ok(self
+            .working_frame
+            .select([col("*").exclude(exclude)])
+            .collect()?)
+    }
+
+    async fn load<T: IScraper>(&mut self, scraper: &mut T) -> Result<ScraperData> {
+        let df = self
+            .raw_input
+            .clone()
+            .filter(utils::polars::filter::buy_or_sell())
+            .select([
+                col(schema::Column::Ticker.as_str()),
+                col(schema::Column::Country.as_str()),
+                col(schema::Column::Date.as_str()),
+            ])
+            .group_by([col(schema::Column::Ticker.as_str())])
+            .agg([
+                col(schema::Column::Country.as_str()).first(),
+                col(schema::Column::Date.as_str()).first(),
+            ])
+            .collect()
+            .expect("Failed to generate unique list of tickers.");
+
+        let tickers: Vec<_> = utils::polars::column_str(&df, schema::Column::Ticker.as_str())
+            .expect("Failed to collect list of tickers")
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+
+        let countries: Vec<_> = utils::polars::column_str(&df, schema::Column::Country.as_str())
+            .expect("Failed to collect list of countries")
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+
+        let mut oldest: Vec<_> = utils::polars::column_date(&df, schema::Column::Date.as_str())
+            .expect("Failed to collect dates");
+        oldest.sort();
+        let oldest = oldest.first().expect("Failed to collect oldest date");
+
+        let result = scraper
+            .with_ticker(
+                &tickers,
+                Some(
+                    &countries
+                        .iter()
+                        .map(|x| schema::Country::from_str(x).unwrap())
+                        .collect::<Vec<schema::Country>>(),
+                ),
+            )
+            .load(scraper::SearchBy::TimeRange {
+                start: *oldest,
+                end: chrono::Local::now().date_naive(),
+                interval: scraper::Interval::Day(1),
+            })
+            .await?;
+
+        Ok(result)
     }
 }
 
@@ -250,7 +361,6 @@ mod unittest {
         )
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 
@@ -284,7 +394,6 @@ mod unittest {
         )
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 
@@ -320,7 +429,6 @@ mod unittest {
         )
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 
@@ -362,7 +470,6 @@ mod unittest {
         )
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 
@@ -395,12 +502,11 @@ mod unittest {
             Column::MarketPrice.into() => &[103.95, 33.87],
             Column::AveragePrice.into() => &[98.03, 69.10],
             Column::MarketValue.into() => &[1372.14, 338.7],
-            Column::PaperProfitRate.into() => &[6.039, -50.9841],
             Column::PaperProfit.into() => &[78.144, -352.3],
+            Column::PaperProfitRate.into() => &[6.039, -50.9841],
         )
         .unwrap();
 
-        // dbg!(&result);
         assert_eq!(expected, result);
     }
 
@@ -442,15 +548,14 @@ mod unittest {
             Column::AveragePrice.into() => &[98.03, 69.10],
             Column::Dividends.into() => &[9.84, 1.45],
             Column::MarketValue.into() => &[1372.14, 338.7],
-            Column::PaperProfitRate.into() => &[6.039, -50.9841],
             Column::PaperProfit.into() => &[78.144, -352.3],
+            Column::PaperProfitRate.into() => &[6.039, -50.9841],
             Column::Profit.into() => &[87.984,-350.85],
             Column::ProfitRate.into() => &[6.7994, -50.7742],
         )
         .unwrap();
 
         std::env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.
-                                                        // dbg!(&result);
         assert_eq!(expected, result);
     }
 }

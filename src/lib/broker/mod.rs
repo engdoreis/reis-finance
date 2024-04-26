@@ -1,7 +1,7 @@
 pub mod schwab;
 pub mod trading212;
 
-use polars_lazy::frame::LazyFrame;
+use polars::lazy::frame::LazyFrame;
 pub use schwab::Schwab;
 pub use trading212::Trading212;
 

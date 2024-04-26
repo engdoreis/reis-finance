@@ -2,73 +2,69 @@ pub mod yahoo;
 pub use yahoo::Yahoo;
 
 use crate::schema;
-use crate::utils;
 use anyhow::Result;
 use chrono;
 use derive_more;
 use polars::prelude::*;
 
 pub trait IScraper {
-    fn with_ticker(&mut self, ticker: impl Into<String>) -> &mut Self;
-    fn with_country(&mut self, country: schema::Country) -> &mut Self;
+    fn reset(&mut self) -> &mut Self;
+    fn with_ticker(&mut self, tickers: &[String], country: Option<&[schema::Country]>)
+        -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load_blocking(&self, search_interval: SearchBy) -> Result<impl IScraperData>;
-    fn load<'a, 'b>(
-        &'a self,
+    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData>;
+    fn load(
+        &mut self,
         search_interval: SearchBy,
-    ) -> impl std::future::Future<Output = Result<impl IScraperData + 'b>> + Send;
+    ) -> impl std::future::Future<Output = Result<ScraperData>> + Send;
 }
 
-pub trait IScraperData {
-    fn quotes(&self) -> Result<Quotes>;
-    fn splits(&self) -> Result<Splits>;
-    fn dividends(&self) -> Result<Dividends>;
+#[derive(Default, Debug)]
+pub struct ScraperData {
+    pub quotes: DataFrame,
+    pub splits: DataFrame,
+    pub dividends: DataFrame,
 }
 
-pub type Quotes = ElementSet;
-pub type Splits = ElementSet;
-pub type Dividends = ElementSet;
+impl ScraperData {
+    pub fn new(quotes: DataFrame, splits: DataFrame, dividends: DataFrame) -> Self {
+        Self {
+            quotes,
+            splits,
+            dividends,
+        }
+    }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Element {
-    pub date: chrono::NaiveDate,
-    pub number: f64,
-}
+    pub fn concat_quotes(&mut self, quotes: DataFrame) -> Result<&mut Self> {
+        self.quotes = concat(
+            [self.quotes.clone().lazy(), quotes.lazy()],
+            Default::default(),
+        )?
+        .collect()?;
 
-#[derive(Debug, Clone)]
-pub struct ElementSet {
-    pub columns: (schema::Column, schema::Column),
-    pub data: Vec<Element>,
-}
+        Ok(self)
+    }
 
-impl std::ops::Deref for ElementSet {
-    type Target = [Element];
-    fn deref(&self) -> &Self::Target {
-        &self.data
+    pub fn concat_splits(&mut self, splits: DataFrame) -> Result<&mut Self> {
+        self.splits = concat(
+            [self.splits.clone().lazy(), splits.lazy()],
+            Default::default(),
+        )?
+        .collect()?;
+        Ok(self)
+    }
+
+    pub fn concat_dividends(&mut self, dividends: DataFrame) -> Result<&mut Self> {
+        self.dividends = concat(
+            [self.dividends.clone().lazy(), dividends.lazy()],
+            Default::default(),
+        )?
+        .collect()?;
+        Ok(self)
     }
 }
 
-impl std::convert::TryFrom<ElementSet> for DataFrame {
-    type Error = anyhow::Error;
-    fn try_from(elem: ElementSet) -> Result<Self, Self::Error> {
-        let (c1, c2): (Vec<_>, Vec<_>) = elem
-            .data
-            .iter()
-            .map(|elem| (elem.date.to_string(), elem.number))
-            .unzip();
-        let c1_name: &str = elem.columns.0.into();
-        let c2_name: &str = elem.columns.1.into();
-        let c1 = Series::new(c1_name, c1.as_slice());
-        let c2 = Series::new(c2_name, c2.as_slice());
-
-        Ok(DataFrame::new(vec![c1, c2])?
-            .lazy()
-            .with_column(utils::polars::str_to_date(c1_name))
-            .collect()?)
-    }
-}
-
-#[derive(derive_more::Display, Debug)]
+#[derive(derive_more::Display, Debug, Clone)]
 pub enum Interval {
     #[display(fmt = "{}d", _0)]
     Day(u32),
@@ -79,6 +75,24 @@ pub enum Interval {
     #[display(fmt = "{}y", _0)]
     Year(u32),
 }
+
+impl Interval {
+    pub fn to_naive(&self) -> chrono::NaiveDate {
+        let today = chrono::Local::now().date_naive();
+        match self {
+            Interval::Day(d) => today
+                .checked_sub_days(chrono::Days::new(*d as u64))
+                .unwrap(),
+            Interval::Week(w) => today - chrono::Duration::weeks(*w as i64),
+            Interval::Month(m) => today.checked_sub_months(chrono::Months::new(*m)).unwrap(),
+            Interval::Year(y) => today
+                .checked_sub_months(chrono::Months::new(*y * 12))
+                .unwrap(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum SearchBy {
     PeriodFromNow(Interval),
     PeriodIntervalFromNow {
