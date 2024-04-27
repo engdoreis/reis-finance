@@ -317,11 +317,11 @@ impl Portfolio {
                         .collect::<Vec<schema::Country>>(),
                 ),
             )
-            .load(scraper::SearchBy::TimeRange {
-                start: *oldest,
-                end: chrono::Local::now().date_naive(),
-                interval: scraper::Interval::Day(1),
-            })
+            .load(scraper::SearchPeriod::new(
+                Some(*oldest),
+                Some(chrono::Local::now().date_naive()),
+                Some(1),
+            ))
             .await?;
 
         Ok(result)

@@ -1,10 +1,10 @@
 pub mod yahoo;
 pub use yahoo::Yahoo;
+pub mod cache;
+pub use cache::Cache;
 
 use crate::schema;
 use anyhow::Result;
-use chrono;
-use derive_more;
 use polars::prelude::*;
 
 pub trait IScraper {
@@ -12,10 +12,10 @@ pub trait IScraper {
     fn with_ticker(&mut self, tickers: &[String], country: Option<&[schema::Country]>)
         -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData>;
+    fn load_blocking(&mut self, search_interval: SearchPeriod) -> Result<ScraperData>;
     fn load(
         &mut self,
-        search_interval: SearchBy,
+        search_interval: SearchPeriod,
     ) -> impl std::future::Future<Output = Result<ScraperData>> + Send;
 }
 
@@ -64,44 +64,34 @@ impl ScraperData {
     }
 }
 
-#[derive(derive_more::Display, Debug, Clone)]
-pub enum Interval {
-    #[display(fmt = "{}d", _0)]
-    Day(u32),
-    #[display(fmt = "{}w", _0)]
-    Week(u32),
-    #[display(fmt = "{}mo", _0)]
-    Month(u32),
-    #[display(fmt = "{}y", _0)]
-    Year(u32),
+#[derive(Debug, Clone)]
+pub struct SearchPeriod {
+    start: chrono::NaiveDate,
+    end: chrono::NaiveDate,
+    interval_days: u32,
 }
 
-impl Interval {
-    pub fn to_naive(&self) -> chrono::NaiveDate {
-        let today = chrono::Local::now().date_naive();
-        match self {
-            Interval::Day(d) => today
-                .checked_sub_days(chrono::Days::new(*d as u64))
-                .unwrap(),
-            Interval::Week(w) => today - chrono::Duration::weeks(*w as i64),
-            Interval::Month(m) => today.checked_sub_months(chrono::Months::new(*m)).unwrap(),
-            Interval::Year(y) => today
-                .checked_sub_months(chrono::Months::new(*y * 12))
-                .unwrap(),
+impl SearchPeriod {
+    pub fn from_str(start: Option<&str>, end: Option<&str>, interval_days: Option<u32>) -> Self {
+        Self::new(
+            start.map(|v| v.parse().unwrap()),
+            end.map(|v| v.parse().unwrap()),
+            interval_days,
+        )
+    }
+
+    pub fn new(
+        start: Option<chrono::NaiveDate>,
+        end: Option<chrono::NaiveDate>,
+        interval_days: Option<u32>,
+    ) -> Self {
+        let interval_days = interval_days.unwrap_or(1);
+        let end = end.unwrap_or(chrono::Local::now().date_naive());
+        let start = start.unwrap_or(end - chrono::Duration::days(interval_days as i64));
+        SearchPeriod {
+            start,
+            end,
+            interval_days,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum SearchBy {
-    PeriodFromNow(Interval),
-    PeriodIntervalFromNow {
-        range: Interval,
-        interval: Interval,
-    },
-    TimeRange {
-        start: chrono::NaiveDate,
-        end: chrono::NaiveDate,
-        interval: Interval,
-    },
 }

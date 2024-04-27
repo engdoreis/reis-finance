@@ -84,11 +84,11 @@ pub mod mock {
             self
         }
 
-        fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData> {
+        fn load_blocking(&mut self, search_interval: SearchPeriod) -> Result<ScraperData> {
             tokio_test::block_on(self.load(search_interval))
         }
 
-        async fn load(&mut self, _: SearchBy) -> Result<ScraperData> {
+        async fn load(&mut self, _: SearchPeriod) -> Result<ScraperData> {
             let len = self.tickers.len();
             let prices: Vec<_> = self
                 .tickers

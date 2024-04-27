@@ -38,8 +38,7 @@ fn _normalize(
 ) -> Result<LazyFrame> {
     const EXCHANGE_RATE: &str = "exchange_rate";
 
-    let data =
-        scraper.load_blocking(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))?;
+    let data = scraper.load_blocking(scraper::SearchPeriod::new(None, None, None))?;
 
     let exchange_rate = data
         .quotes
