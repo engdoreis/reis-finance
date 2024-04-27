@@ -77,7 +77,7 @@ impl Portfolio {
             .join(quotes, &match_on, &match_on, JoinArgs::new(JoinType::Left))
             .fill_null(0f64);
 
-        if loaded_data.splits.shape().1 > 0 {
+        if loaded_data.splits.shape().0 > 0 {
             let splits = loaded_data.splits.clone().lazy().select([
                 col(schema::Column::Date.as_str()),
                 lit(schema::Action::Split.as_str()).alias(schema::Column::Action.as_str()),
