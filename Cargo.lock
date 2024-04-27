@@ -116,9 +116,9 @@ checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
 
 [[package]]
 name = "argminmax"
-version = "0.6.2"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52424b59d69d69d5056d508b260553afd91c57e21849579cd1f50ee8b8b88eaa"
+checksum = "202108b46429b765ef483f8a24d5c46f48c14acfdacc086dd4ab6dddf6bcdbd2"
 dependencies = [
  "num-traits",
 ]
@@ -301,9 +301,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.37"
+version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a0d04d43504c61aa6c7531f1871dd0d418d91130162063b789da00fd7057a5e"
+checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -765,21 +765,12 @@ dependencies = [
 
 [[package]]
 name = "halfbrown"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5681137554ddff44396e5f149892c769d45301dd9aa19c51602a89ee214cb0ec"
+checksum = "8588661a8607108a5ca69cab034063441a0413a0b041c13618a7dd348021ef6f"
 dependencies = [
- "hashbrown 0.13.2",
+ "hashbrown",
  "serde",
-]
-
-[[package]]
-name = "hashbrown"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
-dependencies = [
- "ahash",
 ]
 
 [[package]]
@@ -937,12 +928,12 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.2.6"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "168fb715dda47215e360912c096649d23d58bf392ac62f73919e831745e40f26"
+checksum = "d530e1a18b1cb4c484e6e34556a0d948706958449fca0cab753d649f2bce3d1f"
 dependencies = [
  "equivalent",
- "hashbrown 0.14.3",
+ "hashbrown",
 ]
 
 [[package]]
@@ -1568,7 +1559,7 @@ dependencies = [
  "fast-float",
  "foreign_vec",
  "getrandom",
- "hashbrown 0.14.3",
+ "hashbrown",
  "itoa",
  "itoap",
  "lz4",
@@ -1622,7 +1613,7 @@ dependencies = [
  "chrono-tz",
  "comfy-table",
  "either",
- "hashbrown 0.14.3",
+ "hashbrown",
  "indexmap",
  "num-traits",
  "once_cell",
@@ -1695,7 +1686,7 @@ dependencies = [
  "ahash",
  "chrono",
  "fallible-streaming-iterator",
- "hashbrown 0.14.3",
+ "hashbrown",
  "indexmap",
  "itoa",
  "num-traits",
@@ -1744,7 +1735,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "either",
- "hashbrown 0.14.3",
+ "hashbrown",
  "hex",
  "indexmap",
  "memchr",
@@ -1770,7 +1761,7 @@ dependencies = [
  "crossbeam-channel",
  "crossbeam-queue",
  "enum_dispatch",
- "hashbrown 0.14.3",
+ "hashbrown",
  "num-traits",
  "polars-arrow",
  "polars-compute",
@@ -1867,7 +1858,7 @@ checksum = "38f9c955bb1e9b55d835aeb7fe4e4e8826e01abe5f0ada979ceb7d2b9af7b569"
 dependencies = [
  "ahash",
  "bytemuck",
- "hashbrown 0.14.3",
+ "hashbrown",
  "indexmap",
  "num-traits",
  "once_cell",
@@ -1956,9 +1947,9 @@ dependencies = [
 
 [[package]]
 name = "rayon"
-version = "1.10.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b418a60154510ca1a002a752ca9714984e21e4241e804d32555251faf8b78ffa"
+checksum = "9c27db03db7734835b3f53954b534c91069375ce6ccaa2e065441e07d9b6cdb1"
 dependencies = [
  "either",
  "rayon-core",
@@ -1966,9 +1957,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.12.1"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
+checksum = "5ce3fb6ad83f861aac485e76e1985cd109d9a3713802152be56c3b1f0e0658ed"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
@@ -2514,9 +2505,9 @@ dependencies = [
 
 [[package]]
 name = "simd-json"
-version = "0.13.8"
+version = "0.13.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2faf8f101b9bc484337a6a6b0409cf76c139f2fb70a9e3aee6b6774be7bfbf76"
+checksum = "570c430b3d902ea083097e853263ae782dfe40857d93db019a12356c8e8143fa"
 dependencies = [
  "ahash",
  "getrandom",
@@ -2877,9 +2868,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.15"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "267ac89e0bec6e691e5813911606935d77c476ff49024f98abcea3e7b15e37af"
+checksum = "397c988d37662c7dda6d2208364a706264bf3d6138b11d436cbac0ad38832842"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -2888,9 +2879,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-test"
-version = "0.4.4"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2468baabc3311435b55dd935f702f42cd1b8abb7e754fb7dfb16bd36aa88f9f7"
+checksum = "e89b3cbabd3ae862100094ae433e1def582cf86451b4e9bf83aa7ac1d8a7d719"
 dependencies = [
  "async-stream",
  "bytes",
