@@ -36,30 +36,42 @@ impl ScraperData {
     }
 
     pub fn concat_quotes(&mut self, quotes: DataFrame) -> Result<&mut Self> {
-        self.quotes = concat(
-            [self.quotes.clone().lazy(), quotes.lazy()],
-            Default::default(),
-        )?
-        .collect()?;
+        if quotes.shape().0 > 0 {
+            self.quotes = concat(
+                [self.quotes.clone().lazy(), quotes.lazy()],
+                Default::default(),
+            )?
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(schema::Column::Date.into(), SortOptions::default())
+            .collect()?;
+        }
 
         Ok(self)
     }
 
     pub fn concat_splits(&mut self, splits: DataFrame) -> Result<&mut Self> {
-        self.splits = concat(
-            [self.splits.clone().lazy(), splits.lazy()],
-            Default::default(),
-        )?
-        .collect()?;
+        if splits.shape().0 > 0 {
+            self.splits = concat(
+                [self.splits.clone().lazy(), splits.lazy()],
+                Default::default(),
+            )?
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(schema::Column::Date.into(), SortOptions::default())
+            .collect()?;
+        }
         Ok(self)
     }
 
     pub fn concat_dividends(&mut self, dividends: DataFrame) -> Result<&mut Self> {
-        self.dividends = concat(
-            [self.dividends.clone().lazy(), dividends.lazy()],
-            Default::default(),
-        )?
-        .collect()?;
+        if dividends.shape().0 > 0 {
+            self.dividends = concat(
+                [self.dividends.clone().lazy(), dividends.lazy()],
+                Default::default(),
+            )?
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(schema::Column::Date.into(), SortOptions::default())
+            .collect()?;
+        }
         Ok(self)
     }
 }
