@@ -1,22 +1,24 @@
 use crate::currency;
 use crate::perpetual_inventory::AverageCost;
 use crate::schema;
-use crate::scraper::{self, IScraper, ScraperData};
+use crate::scraper::IScraper;
 use crate::utils;
 use anyhow::Result;
 use polars::lazy::dsl::dtype_col;
 use polars::prelude::*;
-use std::str::FromStr;
 
 pub struct Portfolio {
     raw_input: LazyFrame,
     working_frame: LazyFrame,
     uninvested_cash: Option<LazyFrame>,
-    loaded_data: Option<ScraperData>,
+    present_date: chrono::NaiveDate,
 }
 
 impl Portfolio {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+    pub fn from_orders(
+        orders: impl crate::IntoLazyFrame,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Self {
         let raw_input: LazyFrame = orders.into();
         let result = raw_input
             .clone()
@@ -42,17 +44,15 @@ impl Portfolio {
             working_frame: result,
             raw_input,
             uninvested_cash: None,
-            loaded_data: None,
+            present_date: present_date.unwrap_or(chrono::Local::now().date_naive()),
         }
     }
 
-    pub fn with_quotes(mut self, scraper: &mut impl IScraper) -> Result<Self> {
-        let loaded_data = tokio_test::block_on(self.load(scraper))?;
-
-        let quotes = loaded_data
-            .quotes
+    pub fn with_quotes(mut self, quotes: &DataFrame) -> Result<Self> {
+        let quotes = quotes
             .clone()
             .lazy()
+            .filter(col(schema::Column::Date.as_str()).lt_eq(lit(self.present_date)))
             .with_column(
                 col(schema::Column::Currency.as_str())
                     .alias(schema::Column::MarketPriceCurrency.as_str()),
@@ -77,25 +77,6 @@ impl Portfolio {
             .join(quotes, &match_on, &match_on, JoinArgs::new(JoinType::Left))
             .fill_null(0f64);
 
-        if loaded_data.splits.shape().0 > 0 {
-            let splits = loaded_data.splits.clone().lazy().select([
-                col(schema::Column::Date.as_str()),
-                lit(schema::Action::Split.as_str()).alias(schema::Column::Action.as_str()),
-                col(schema::Column::Ticker.as_str()),
-                col(schema::Column::Qty.as_str()),
-                lit(0.0).alias(schema::Column::Price.as_str()),
-                lit(0.0).alias(schema::Column::Amount.as_str()),
-                lit(0.0).alias(schema::Column::Tax.as_str()),
-                lit(0.0).alias(schema::Column::Commission.as_str()),
-                lit(schema::Country::NA.as_str()).alias(schema::Column::Country.as_str()),
-                lit(schema::Currency::USD.as_str()).alias(schema::Column::Currency.as_str()),
-                lit(schema::Type::Stock.as_str()).alias(schema::Column::Type.as_str()),
-            ]);
-            self.raw_input = concat([self.raw_input, splits], Default::default())?
-                .sort(schema::Column::Date.as_str(), Default::default());
-        }
-
-        self.loaded_data = Some(loaded_data);
         Ok(self)
     }
 
@@ -206,6 +187,7 @@ impl Portfolio {
             ])],
             currency,
             scraper,
+            Some(self.present_date),
         )?;
 
         frame = currency::normalize(
@@ -214,6 +196,7 @@ impl Portfolio {
             &[col(schema::Column::MarketPrice.as_str())],
             currency,
             scraper,
+            Some(self.present_date),
         )?;
 
         frame = frame
@@ -240,6 +223,7 @@ impl Portfolio {
                 &[dtype_col(&DataType::Float64)],
                 currency,
                 scraper,
+                Some(self.present_date),
             )?;
             normalized = normalized
                 .group_by([
@@ -271,67 +255,13 @@ impl Portfolio {
             .select([col("*").exclude(exclude)])
             .collect()?)
     }
-
-    async fn load<T: IScraper>(&mut self, scraper: &mut T) -> Result<ScraperData> {
-        let df = self
-            .raw_input
-            .clone()
-            .filter(utils::polars::filter::buy_or_sell())
-            .select([
-                col(schema::Column::Ticker.as_str()),
-                col(schema::Column::Country.as_str()),
-                col(schema::Column::Date.as_str()),
-            ])
-            .group_by([col(schema::Column::Ticker.as_str())])
-            .agg([
-                col(schema::Column::Country.as_str()).first(),
-                col(schema::Column::Date.as_str()).first(),
-            ])
-            .collect()
-            .expect("Failed to generate unique list of tickers.");
-
-        let tickers: Vec<_> = utils::polars::column_str(&df, schema::Column::Ticker.as_str())
-            .expect("Failed to collect list of tickers")
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-
-        let countries: Vec<_> = utils::polars::column_str(&df, schema::Column::Country.as_str())
-            .expect("Failed to collect list of countries")
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-
-        let mut oldest: Vec<_> = utils::polars::column_date(&df, schema::Column::Date.as_str())
-            .expect("Failed to collect dates");
-        oldest.sort();
-        let oldest = oldest.first().expect("Failed to collect oldest date");
-
-        let result = scraper
-            .with_ticker(
-                &tickers,
-                Some(
-                    &countries
-                        .iter()
-                        .map(|x| schema::Country::from_str(x).unwrap())
-                        .collect::<Vec<schema::Country>>(),
-                ),
-            )
-            .load(scraper::SearchPeriod::new(
-                Some(*oldest),
-                Some(chrono::Local::now().date_naive()),
-                Some(1),
-            ))
-            .await?;
-
-        Ok(result)
-    }
 }
 
 #[cfg(test)]
 mod unittest {
     use super::*;
     use crate::schema::Column;
+    use crate::scraper::SearchPeriod;
     use crate::utils;
 
     #[test]
@@ -339,8 +269,12 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = utils::test::mock::Scraper::new();
-        let result = Portfolio::from_orders(orders)
-            .with_quotes(&mut scraper)
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+        let result = Portfolio::from_orders(orders, None)
+            .with_quotes(&data.quotes)
             .unwrap()
             .collect()
             .unwrap()
@@ -369,8 +303,13 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = utils::test::mock::Scraper::new();
-        let result = Portfolio::from_orders(orders)
-            .with_quotes(&mut scraper)
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
+        let result = Portfolio::from_orders(orders, None)
+            .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
             .unwrap()
@@ -402,8 +341,13 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = utils::test::mock::Scraper::new();
-        let result = Portfolio::from_orders(orders)
-            .with_quotes(&mut scraper)
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
+        let result = Portfolio::from_orders(orders, None)
+            .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
             .unwrap()
@@ -443,8 +387,13 @@ mod unittest {
         .unwrap();
 
         let mut scraper = utils::test::mock::Scraper::new();
-        let result = Portfolio::from_orders(orders)
-            .with_quotes(&mut scraper)
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
+        let result = Portfolio::from_orders(orders, None)
+            .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
             .unwrap()
@@ -478,8 +427,13 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
 
         let mut scraper = utils::test::mock::Scraper::new();
-        let result = Portfolio::from_orders(orders)
-            .with_quotes(&mut scraper)
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
+        let result = Portfolio::from_orders(orders, None)
+            .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
             .unwrap()
@@ -521,8 +475,13 @@ mod unittest {
         .unwrap();
 
         let mut scraper = utils::test::mock::Scraper::new();
-        let result = Portfolio::from_orders(orders)
-            .with_quotes(&mut scraper)
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
+        let result = Portfolio::from_orders(orders, None)
+            .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
             .unwrap()

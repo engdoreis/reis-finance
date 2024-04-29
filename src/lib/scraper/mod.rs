@@ -2,8 +2,10 @@ pub mod yahoo;
 pub use yahoo::Yahoo;
 pub mod cache;
 pub use cache::Cache;
+use std::str::FromStr;
 
 use crate::schema;
+use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -106,4 +108,58 @@ impl SearchPeriod {
             interval_days,
         }
     }
+}
+
+pub async fn load_data<T: IScraper>(
+    orders: impl crate::IntoLazyFrame,
+    scraper: &mut T,
+    present_date: Option<chrono::NaiveDate>,
+) -> Result<ScraperData> {
+    let df = orders.into();
+    let df = df
+        .filter(utils::polars::filter::buy_or_sell())
+        .select([
+            col(schema::Column::Ticker.as_str()),
+            col(schema::Column::Country.as_str()),
+            col(schema::Column::Date.as_str()),
+        ])
+        .group_by([col(schema::Column::Ticker.as_str())])
+        .agg([
+            col(schema::Column::Country.as_str()).first(),
+            col(schema::Column::Date.as_str()).first(),
+        ])
+        .collect()
+        .expect("Failed to generate unique list of tickers.");
+
+    let tickers: Vec<_> = utils::polars::column_str(&df, schema::Column::Ticker.as_str())
+        .expect("Failed to collect list of tickers")
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+
+    let countries: Vec<_> = utils::polars::column_str(&df, schema::Column::Country.as_str())
+        .expect("Failed to collect list of countries")
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+
+    let mut oldest: Vec<_> = utils::polars::column_date(&df, schema::Column::Date.as_str())
+        .expect("Failed to collect dates");
+    oldest.sort();
+    let oldest = oldest.first().expect("Failed to collect oldest date");
+
+    let result = scraper
+        .with_ticker(
+            &tickers,
+            Some(
+                &countries
+                    .iter()
+                    .map(|x| schema::Country::from_str(x).unwrap())
+                    .collect::<Vec<schema::Country>>(),
+            ),
+        )
+        .load(SearchPeriod::new(Some(*oldest), present_date, Some(1)))
+        .await?;
+
+    Ok(result)
 }
