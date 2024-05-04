@@ -9,7 +9,7 @@ use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::googlesheet::GoogleSheet;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::schema;
-use reis_finance_lib::scraper::{self, Yahoo};
+use reis_finance_lib::scraper::{self, Cache, Yahoo};
 use reis_finance_lib::summary::Summary;
 use reis_finance_lib::timeline::Timeline;
 use reis_finance_lib::uninvested;
@@ -74,6 +74,10 @@ fn main() -> Result<()> {
 
 fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
     let mut scraper = Yahoo::new();
+    let mut scraper = Cache::new(
+        scraper,
+        dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
+    );
     let mut df = LazyFrame::default();
     for lf in orders {
         df = concat([df, lf.into_lazy()], Default::default())?;
@@ -151,11 +155,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         sheet.update_sheets(&summary)?;
         println!("Uploading portfolio...");
         sheet.update_sheets(&portfolio)?;
-        println!("Uploading profit...");
-        sheet.update_sheets(&profit_pivot)?;
-        println!("Uploading dividends...");
-        sheet.update_sheets(&div_pivot)?;
-
+        
         if let Some(timeline) = args.timeline {
             println!("Computing timeline...");
             let timeline = Timeline::from_orders(orders.clone(), args.currency).summary(
@@ -167,6 +167,10 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
             println!("Uploading timeline...");
             sheet.update_sheets(&timeline)?;
         }
+        println!("Uploading profit...");
+        sheet.update_sheets(&profit_pivot)?;
+        println!("Uploading dividends...");
+        sheet.update_sheets(&div_pivot)?;
     }
 
     Ok(())
