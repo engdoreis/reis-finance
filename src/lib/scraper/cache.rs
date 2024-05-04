@@ -78,26 +78,12 @@ where
             }
         }
 
-        let mut dates: Vec<_> = utils::polars::column_date(&df, Column::Date.as_str())
-            .context("Failed to collect dates")?;
-        dates.sort();
-        dates.dedup();
-        let mut oldest = dates
-            .first()
-            .context("Failed to collect oldest date")?
-            .to_owned();
+        let mut oldest = utils::polars::first_date(&df);
         adjust_weekday_backward(&mut oldest);
-        let newest = dates
-            .last()
-            .context("Failed to collect oldest date")?
-            .to_owned();
+        let newest = utils::polars::latest_date(&df);
         let mut end = period.end.clone();
         adjust_weekday_backward(&mut end);
         let updated = oldest <= period.start && newest >= end;
-        // dbg!(&oldest);
-        // dbg!(&newest);
-        // dbg!(&end);
-        // dbg!(&period);
         Ok(updated)
     }
 
