@@ -155,7 +155,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         sheet.update_sheets(&summary)?;
         println!("Uploading portfolio...");
         sheet.update_sheets(&portfolio)?;
-        
+
         if let Some(timeline) = args.timeline {
             println!("Computing timeline...");
             let timeline = Timeline::from_orders(orders.clone(), args.currency).summary(
