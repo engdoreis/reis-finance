@@ -9,7 +9,7 @@ use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::googlesheet::GoogleSheet;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::schema;
-use reis_finance_lib::scraper::Yahoo;
+use reis_finance_lib::scraper::{self, Cache, Yahoo};
 use reis_finance_lib::summary::Summary;
 use reis_finance_lib::timeline::Timeline;
 use reis_finance_lib::uninvested;
@@ -74,15 +74,40 @@ fn main() -> Result<()> {
 
 fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
     let mut scraper = Yahoo::new();
+    let mut scraper = Cache::new(
+        scraper,
+        dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
+    );
     let mut df = LazyFrame::default();
     for lf in orders {
         df = concat([df, lf.into_lazy()], Default::default())?;
     }
-    let orders = df
+    let mut orders = df
         .sort(schema::Column::Date.as_str(), Default::default())
         .collect()
         .unwrap()
         .lazy();
+
+    println!("Loading market data...");
+    let scraped_data =
+        tokio_test::block_on(scraper::load_data(orders.clone(), &mut scraper, None))?;
+    if scraped_data.splits.shape().0 > 0 {
+        let splits = scraped_data.splits.clone().lazy().select([
+            col(schema::Column::Date.as_str()),
+            lit(schema::Action::Split.as_str()).alias(schema::Column::Action.as_str()),
+            col(schema::Column::Ticker.as_str()),
+            col(schema::Column::Qty.as_str()),
+            lit(0.0).alias(schema::Column::Price.as_str()),
+            lit(0.0).alias(schema::Column::Amount.as_str()),
+            lit(0.0).alias(schema::Column::Tax.as_str()),
+            lit(0.0).alias(schema::Column::Commission.as_str()),
+            lit(schema::Country::NA.as_str()).alias(schema::Column::Country.as_str()),
+            lit(schema::Currency::USD.as_str()).alias(schema::Column::Currency.as_str()),
+            lit(schema::Type::Stock.as_str()).alias(schema::Column::Type.as_str()),
+        ]);
+        orders = concat([orders, splits], Default::default())?
+            .sort(schema::Column::Date.as_str(), Default::default());
+    }
 
     println!("Computing dividends...");
     let dividends = Dividends::from_orders(orders.clone()).by_ticker().unwrap();
@@ -92,8 +117,8 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         .unwrap();
 
     println!("Computing portfolio...");
-    let portfolio = Portfolio::from_orders(orders.clone())
-        .with_quotes(&mut scraper)?
+    let portfolio = Portfolio::from_orders(orders.clone(), None)
+        .with_quotes(&scraped_data.quotes)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
         .normalize_currency(&mut scraper, args.currency)?
@@ -130,21 +155,22 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         sheet.update_sheets(&summary)?;
         println!("Uploading portfolio...");
         sheet.update_sheets(&portfolio)?;
-        println!("Uploading profit...");
-        sheet.update_sheets(&profit_pivot)?;
-        println!("Uploading dividends...");
-        sheet.update_sheets(&div_pivot)?;
-
+        
         if let Some(timeline) = args.timeline {
             println!("Computing timeline...");
             let timeline = Timeline::from_orders(orders.clone(), args.currency).summary(
                 &mut scraper,
+                &scraped_data,
                 timeline,
                 None,
             )?;
             println!("Uploading timeline...");
             sheet.update_sheets(&timeline)?;
         }
+        println!("Uploading profit...");
+        sheet.update_sheets(&profit_pivot)?;
+        println!("Uploading dividends...");
+        sheet.update_sheets(&div_pivot)?;
     }
 
     Ok(())

@@ -1,10 +1,12 @@
 pub mod yahoo;
 pub use yahoo::Yahoo;
+pub mod cache;
+pub use cache::Cache;
+use std::str::FromStr;
 
 use crate::schema;
+use crate::utils;
 use anyhow::Result;
-use chrono;
-use derive_more;
 use polars::prelude::*;
 
 pub trait IScraper {
@@ -12,10 +14,10 @@ pub trait IScraper {
     fn with_ticker(&mut self, tickers: &[String], country: Option<&[schema::Country]>)
         -> &mut Self;
     fn with_currency(&mut self, from: schema::Currency, to: schema::Currency) -> &mut Self;
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData>;
+    fn load_blocking(&mut self, search_interval: SearchPeriod) -> Result<ScraperData>;
     fn load(
         &mut self,
-        search_interval: SearchBy,
+        search_interval: SearchPeriod,
     ) -> impl std::future::Future<Output = Result<ScraperData>> + Send;
 }
 
@@ -36,72 +38,128 @@ impl ScraperData {
     }
 
     pub fn concat_quotes(&mut self, quotes: DataFrame) -> Result<&mut Self> {
-        self.quotes = concat(
-            [self.quotes.clone().lazy(), quotes.lazy()],
-            Default::default(),
-        )?
-        .collect()?;
+        if quotes.shape().0 > 0 {
+            self.quotes = concat(
+                [self.quotes.clone().lazy(), quotes.lazy()],
+                Default::default(),
+            )?
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(schema::Column::Date.into(), SortOptions::default())
+            .collect()?;
+        }
 
         Ok(self)
     }
 
     pub fn concat_splits(&mut self, splits: DataFrame) -> Result<&mut Self> {
-        self.splits = concat(
-            [self.splits.clone().lazy(), splits.lazy()],
-            Default::default(),
-        )?
-        .collect()?;
+        if splits.shape().0 > 0 {
+            self.splits = concat(
+                [self.splits.clone().lazy(), splits.lazy()],
+                Default::default(),
+            )?
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(schema::Column::Date.into(), SortOptions::default())
+            .collect()?;
+        }
         Ok(self)
     }
 
     pub fn concat_dividends(&mut self, dividends: DataFrame) -> Result<&mut Self> {
-        self.dividends = concat(
-            [self.dividends.clone().lazy(), dividends.lazy()],
-            Default::default(),
-        )?
-        .collect()?;
+        if dividends.shape().0 > 0 {
+            self.dividends = concat(
+                [self.dividends.clone().lazy(), dividends.lazy()],
+                Default::default(),
+            )?
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(schema::Column::Date.into(), SortOptions::default())
+            .collect()?;
+        }
         Ok(self)
     }
 }
 
-#[derive(derive_more::Display, Debug, Clone)]
-pub enum Interval {
-    #[display(fmt = "{}d", _0)]
-    Day(u32),
-    #[display(fmt = "{}w", _0)]
-    Week(u32),
-    #[display(fmt = "{}mo", _0)]
-    Month(u32),
-    #[display(fmt = "{}y", _0)]
-    Year(u32),
+#[derive(Debug, Clone)]
+pub struct SearchPeriod {
+    start: chrono::NaiveDate,
+    end: chrono::NaiveDate,
+    interval_days: u32,
 }
 
-impl Interval {
-    pub fn to_naive(&self) -> chrono::NaiveDate {
-        let today = chrono::Local::now().date_naive();
-        match self {
-            Interval::Day(d) => today
-                .checked_sub_days(chrono::Days::new(*d as u64))
-                .unwrap(),
-            Interval::Week(w) => today - chrono::Duration::weeks(*w as i64),
-            Interval::Month(m) => today.checked_sub_months(chrono::Months::new(*m)).unwrap(),
-            Interval::Year(y) => today
-                .checked_sub_months(chrono::Months::new(*y * 12))
-                .unwrap(),
+impl SearchPeriod {
+    pub fn from_str(start: Option<&str>, end: Option<&str>, interval_days: Option<u32>) -> Self {
+        Self::new(
+            start.map(|v| v.parse().unwrap()),
+            end.map(|v| v.parse().unwrap()),
+            interval_days,
+        )
+    }
+
+    pub fn new(
+        start: Option<chrono::NaiveDate>,
+        end: Option<chrono::NaiveDate>,
+        interval_days: Option<u32>,
+    ) -> Self {
+        let interval_days = interval_days.unwrap_or(1);
+        let end = end.unwrap_or(chrono::Local::now().date_naive());
+        let start = start.unwrap_or(end - chrono::Duration::days(interval_days as i64));
+        SearchPeriod {
+            start,
+            end,
+            interval_days,
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum SearchBy {
-    PeriodFromNow(Interval),
-    PeriodIntervalFromNow {
-        range: Interval,
-        interval: Interval,
-    },
-    TimeRange {
-        start: chrono::NaiveDate,
-        end: chrono::NaiveDate,
-        interval: Interval,
-    },
+pub async fn load_data<T: IScraper>(
+    orders: impl crate::IntoLazyFrame,
+    scraper: &mut T,
+    present_date: Option<chrono::NaiveDate>,
+) -> Result<ScraperData> {
+    let df = orders.into();
+    let df = df
+        .filter(utils::polars::filter::buy_or_sell())
+        .select([
+            col(schema::Column::Ticker.as_str()),
+            col(schema::Column::Country.as_str()),
+            col(schema::Column::Date.as_str()),
+        ])
+        .group_by([col(schema::Column::Ticker.as_str())])
+        .agg([
+            col(schema::Column::Country.as_str()).first(),
+            col(schema::Column::Date.as_str()).first(),
+        ])
+        .collect()
+        .expect("Failed to generate unique list of tickers.");
+
+    let tickers: Vec<_> = utils::polars::column_str(&df, schema::Column::Ticker.as_str())
+        .expect("Failed to collect list of tickers")
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+
+    let countries: Vec<_> = utils::polars::column_str(&df, schema::Column::Country.as_str())
+        .expect("Failed to collect list of countries")
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+
+    let mut oldest: Vec<_> = utils::polars::column_date(&df, schema::Column::Date.as_str())
+        .expect("Failed to collect dates");
+    oldest.sort();
+    let oldest = oldest.first().expect("Failed to collect oldest date");
+
+    let result = scraper
+        .with_ticker(
+            &tickers,
+            Some(
+                &countries
+                    .iter()
+                    .map(|x| schema::Country::from_str(x).unwrap())
+                    .collect::<Vec<schema::Country>>(),
+            ),
+        )
+        .load(SearchPeriod::new(Some(*oldest), present_date, Some(1)))
+        .await?;
+
+    Ok(result)
 }

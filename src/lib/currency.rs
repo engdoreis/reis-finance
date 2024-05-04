@@ -11,6 +11,7 @@ pub fn normalize(
     columns: &[Expr],
     currency: schema::Currency,
     scraper: &mut impl IScraper,
+    present_date: Option<chrono::NaiveDate>,
 ) -> Result<LazyFrame> {
     let table = table.into_lazy();
 
@@ -26,21 +27,13 @@ pub fn normalize(
         }
     }
 
-    _normalize(table, by_col, columns, currency, scraper)
-}
+    let data = scraper.load_blocking(scraper::SearchPeriod::new(
+        present_date.map(|x| x - chrono::Duration::days(3)),
+        present_date,
+        None,
+    ))?;
 
-fn _normalize(
-    table: LazyFrame,
-    by_col: &str,
-    columns: &[Expr],
-    currency: schema::Currency,
-    scraper: &mut impl IScraper,
-) -> Result<LazyFrame> {
     const EXCHANGE_RATE: &str = "exchange_rate";
-
-    let data =
-        scraper.load_blocking(scraper::SearchBy::PeriodFromNow(scraper::Interval::Day(1)))?;
-
     let exchange_rate = data
         .quotes
         .lazy()
@@ -124,6 +117,7 @@ mod unittest {
             &[col(Amount.as_str())],
             USD,
             &mut scraper,
+            None,
         )
         .unwrap()
         .with_column(dtype_col(&DataType::Float64).round(2))
@@ -172,6 +166,7 @@ mod unittest {
             &[col(Amount.as_str())],
             GBP,
             &mut scraper,
+            None,
         )
         .unwrap()
         .with_column(dtype_col(&DataType::Float64).round(2))

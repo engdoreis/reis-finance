@@ -1,9 +1,8 @@
 use crate::dividends::Dividends;
 use crate::liquidated;
 use crate::portfolio::Portfolio;
-use crate::schema;
-use crate::schema::Column;
-use crate::scraper::IScraper;
+use crate::schema::{self, Action, Column};
+use crate::scraper::{IScraper, ScraperData};
 use crate::summary::Summary;
 use crate::uninvested;
 use anyhow::Result;
@@ -25,6 +24,7 @@ impl Timeline {
     pub fn summary<T: IScraper>(
         self,
         scraper: &mut T,
+        scraped_data: &ScraperData,
         interval_days: usize,
         date: Option<&str>,
     ) -> Result<DataFrame> {
@@ -37,10 +37,11 @@ impl Timeline {
         let mut result = LazyFrame::default();
 
         loop {
-            let orders = self
-                .orders
-                .clone()
-                .filter(col(Column::Date.as_str()).lt(lit(date)));
+            let orders = self.orders.clone().filter(
+                col(Column::Action.as_str())
+                    .eq(lit(Action::Split.as_str()))
+                    .or(col(Column::Date.as_str()).lt_eq(lit(date))),
+            );
 
             if orders
                 .clone()
@@ -56,8 +57,8 @@ impl Timeline {
             let dividends = Dividends::from_orders(orders.clone()).by_ticker()?;
             let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
 
-            let portfolio = Portfolio::from_orders(orders.clone())
-                .with_quotes(scraper)?
+            let portfolio = Portfolio::from_orders(orders.clone(), Some(date))
+                .with_quotes(&scraped_data.quotes)?
                 .with_average_price()?
                 .with_uninvested_cash(cash.clone())
                 .normalize_currency(scraper, self.currency)?
@@ -99,6 +100,7 @@ impl Timeline {
 mod unittest {
     use super::*;
     use crate::schema::Column;
+    use crate::scraper::SearchPeriod;
     use crate::utils;
     use std::fs::File;
     use std::path::Path;
@@ -108,8 +110,13 @@ mod unittest {
         let orders = utils::test::generate_mocking_orders();
         let mut scraper = utils::test::mock::Scraper::new();
 
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
         let mut result = Timeline::from_orders(orders.clone(), schema::Currency::USD)
-            .summary(&mut scraper, 30, Some("2024-09-28"))
+            .summary(&mut scraper, &data, 30, Some("2024-09-28"))
             .unwrap()
             .lazy()
             .with_column(dtype_col(&DataType::Float64).round(4))

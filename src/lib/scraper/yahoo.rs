@@ -1,6 +1,6 @@
 use crate::schema::Column;
 use crate::schema::Currency;
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use chrono::{self, TimeZone};
 use yahoo_finance_api as yahoo;
@@ -151,49 +151,41 @@ impl IScraper for Yahoo {
         self
     }
 
-    fn load_blocking(&mut self, search_interval: SearchBy) -> Result<ScraperData> {
+    fn load_blocking(&mut self, search_interval: SearchPeriod) -> Result<ScraperData> {
         tokio_test::block_on(self.load(search_interval))
     }
 
-    async fn load(&mut self, search_interval: SearchBy) -> Result<ScraperData> {
+    async fn load(&mut self, period: SearchPeriod) -> Result<ScraperData> {
         let mut data = ScraperData::default();
         for (ticker, country) in self.tickers.iter().zip(self.countries.iter()) {
             let (suffix, multiplier) = Self::map_country(country);
             let symbol = format!("{}{}", ticker, suffix);
 
-            let response = match search_interval {
-                SearchBy::PeriodFromNow(ref range) => {
-                    self.provider
-                        .get_quote_range(&symbol, &Interval::Day(1).to_string(), &range.to_string())
-                        .await
-                }
-                SearchBy::PeriodIntervalFromNow {
-                    ref range,
-                    ref interval,
-                } => {
-                    self.provider
-                        .get_quote_range(&symbol, &interval.to_string(), &range.to_string())
-                        .await
-                }
-                SearchBy::TimeRange {
-                    start,
-                    end,
-                    ref interval,
-                } => {
-                    self.provider
-                        .get_quote_history_interval(
-                            &symbol,
-                            time::OffsetDateTime::from_unix_timestamp(
-                                start.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(),
-                            )?,
-                            time::OffsetDateTime::from_unix_timestamp(
-                                end.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(),
-                            )?,
-                            &interval.to_string(),
-                        )
-                        .await
-                }
-            }?;
+            let response = self
+                .provider
+                .get_quote_history_interval(
+                    &symbol,
+                    time::OffsetDateTime::from_unix_timestamp(
+                        period
+                            .start
+                            .and_hms_opt(0, 0, 0)
+                            .unwrap()
+                            .and_utc()
+                            .timestamp(),
+                    )?,
+                    time::OffsetDateTime::from_unix_timestamp(
+                        period
+                            .end
+                            .and_hms_opt(0, 0, 0)
+                            .unwrap()
+                            .and_utc()
+                            .timestamp(),
+                    )?,
+                    &format!("{}d", period.interval_days),
+                )
+                .await
+                .with_context(|| format!("Failed to load {:?} with {:?}", &ticker, period))?;
+
             data.concat_quotes(self.quotes(&response, ticker, country.to_owned(), multiplier)?)?
                 .concat_splits(self.splits(&response, ticker)?)?
                 .concat_dividends(self.dividends(&response, ticker, country.to_owned())?)?;
@@ -219,11 +211,11 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker(&["AAPL".to_owned()], None)
-            .load_blocking(SearchBy::TimeRange {
-                start: "2023-08-06".parse().unwrap(),
-                end: "2024-01-06".parse().unwrap(),
-                interval: Interval::Day(1),
-            })
+            .load_blocking(SearchPeriod::new(
+                Some("2023-08-06".parse().unwrap()),
+                Some("2024-01-06".parse().unwrap()),
+                Some(1),
+            ))
             .unwrap();
 
         let mut quotes = data.quotes;
@@ -250,11 +242,11 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker(&["GOOGL".to_owned()], None)
-            .load_blocking(SearchBy::TimeRange {
-                start: "2022-01-06".parse().unwrap(),
-                end: "2023-01-06".parse().unwrap(),
-                interval: Interval::Day(1),
-            })
+            .load_blocking(SearchPeriod::from_str(
+                Some("2022-01-06"),
+                Some("2023-01-06"),
+                Some(1),
+            ))
             .unwrap();
 
         let mut splits = data.splits;
@@ -281,11 +273,11 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker(&["AAPL".to_owned()], None)
-            .load_blocking(SearchBy::TimeRange {
-                start: "2022-01-06".parse().unwrap(),
-                end: "2023-01-06".parse().unwrap(),
-                interval: Interval::Day(1),
-            })
+            .load_blocking(SearchPeriod::from_str(
+                Some("2022-01-06"),
+                Some("2023-01-06"),
+                Some(1),
+            ))
             .unwrap();
 
         let mut div = data.dividends;
@@ -308,11 +300,11 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker(&["TSCO".to_owned()], Some(&[schema::Country::Uk]))
-            .load_blocking(SearchBy::TimeRange {
-                start: "2024-02-05".parse().unwrap(),
-                end: "2024-02-06".parse().unwrap(),
-                interval: Interval::Day(1),
-            })
+            .load_blocking(SearchPeriod::from_str(
+                Some("2024-02-05"),
+                Some("2024-02-06"),
+                Some(1),
+            ))
             .unwrap()
             .quotes;
 
@@ -331,11 +323,11 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_ticker(&["WEGE3".to_owned()], Some(&[schema::Country::Brazil]))
-            .load_blocking(SearchBy::TimeRange {
-                start: "2023-01-05".parse().unwrap(),
-                end: "2023-01-06".parse().unwrap(),
-                interval: Interval::Day(1),
-            })
+            .load_blocking(SearchPeriod::from_str(
+                Some("2023-01-05"),
+                Some("2023-01-06"),
+                Some(1),
+            ))
             .unwrap()
             .quotes;
 
@@ -354,11 +346,11 @@ mod unittest {
         let mut yh = Yahoo::new();
         let data = yh
             .with_currency(from, to)
-            .load_blocking(SearchBy::TimeRange {
-                start: "2024-02-08".parse().unwrap(),
-                end: "2024-02-08".parse().unwrap(),
-                interval: Interval::Day(1),
-            })
+            .load_blocking(SearchPeriod::from_str(
+                Some("2024-02-08"),
+                Some("2024-02-08"),
+                Some(1),
+            ))
             .unwrap()
             .quotes;
 
