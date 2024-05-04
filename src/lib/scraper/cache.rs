@@ -151,7 +151,6 @@ where
     }
 
     async fn load(&mut self, period: SearchPeriod) -> Result<ScraperData> {
-        // dbg!(&period);
         let mut cached_data = ScraperData::default();
         loop {
             let quotes = self
@@ -178,7 +177,7 @@ where
                 }
             }
 
-            println!("Updating cache...");
+            println!("Updating cache {:?} ...", period);
             let data = self
                 .inner
                 .load(SearchPeriod::new(Some(period.start), None, Some(1)))

@@ -5,6 +5,7 @@ use crate::schema::{self, Action, Column};
 use crate::scraper::{IScraper, ScraperData};
 use crate::summary::Summary;
 use crate::uninvested;
+use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
 
@@ -28,36 +29,27 @@ impl Timeline {
         interval_days: usize,
         date: Option<&str>,
     ) -> Result<DataFrame> {
-        let mut date = if let Some(date) = date {
+        let today = chrono::Local::now().date_naive();
+        let date = if let Some(date) = date {
             date.parse()?
         } else {
-            chrono::Local::now().date_naive()
+            today
         };
+        let df = self.orders.clone().collect().unwrap();
+        let mut current_date = utils::polars::first_date(&df);
 
         let mut result = LazyFrame::default();
-
         loop {
             let orders = self.orders.clone().filter(
                 col(Column::Action.as_str())
                     .eq(lit(Action::Split.as_str()))
-                    .or(col(Column::Date.as_str()).lt_eq(lit(date))),
+                    .or(col(Column::Date.as_str()).lt_eq(lit(current_date))),
             );
-
-            if orders
-                .clone()
-                .filter(col(schema::Column::Action.as_str()).eq(lit(schema::Action::Buy.as_str())))
-                .collect()?
-                .shape()
-                .0
-                == 0
-            {
-                break;
-            }
 
             let dividends = Dividends::from_orders(orders.clone()).by_ticker()?;
             let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
 
-            let portfolio = Portfolio::from_orders(orders.clone(), Some(date))
+            let portfolio = Portfolio::from_orders(orders.clone(), Some(current_date))
                 .with_quotes(&scraped_data.quotes)?
                 .with_average_price()?
                 .with_uninvested_cash(cash.clone())
@@ -80,14 +72,18 @@ impl Timeline {
                 [
                     result,
                     summary.with_column(
-                        lit(date)
+                        lit(current_date)
                             .cast(DataType::Date)
                             .alias(schema::Column::Date.as_str()),
                     ),
                 ],
                 Default::default(),
             )?;
-            date -= chrono::Duration::days(interval_days as i64);
+            if current_date == date {
+                break;
+            }
+            current_date += chrono::Duration::days(interval_days as i64);
+            current_date = current_date.min(date);
         }
 
         Ok(result
@@ -109,6 +105,7 @@ mod unittest {
     fn timeline_summary_success() {
         let orders = utils::test::generate_mocking_orders();
         let mut scraper = utils::test::mock::Scraper::new();
+        dbg!(&orders);
 
         let data = scraper
             .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
@@ -116,7 +113,7 @@ mod unittest {
             .unwrap();
 
         let mut result = Timeline::from_orders(orders.clone(), schema::Currency::USD)
-            .summary(&mut scraper, &data, 30, Some("2024-09-28"))
+            .summary(&mut scraper, &data, 30, Some("2024-09-27"))
             .unwrap()
             .lazy()
             .with_column(dtype_col(&DataType::Float64).round(4))
