@@ -143,10 +143,7 @@ pub async fn load_data<T: IScraper>(
         .map(str::to_owned)
         .collect();
 
-    let mut oldest: Vec<_> = utils::polars::column_date(&df, schema::Column::Date.as_str())
-        .expect("Failed to collect dates");
-    oldest.sort();
-    let oldest = oldest.first().expect("Failed to collect oldest date");
+    let oldest = utils::polars::first_date(&df);
 
     let result = scraper
         .with_ticker(
@@ -158,7 +155,7 @@ pub async fn load_data<T: IScraper>(
                     .collect::<Vec<schema::Country>>(),
             ),
         )
-        .load(SearchPeriod::new(Some(*oldest), present_date, Some(1)))
+        .load(SearchPeriod::new(Some(oldest), present_date, Some(1)))
         .await?;
 
     Ok(result)
