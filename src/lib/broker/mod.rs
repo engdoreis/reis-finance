@@ -24,12 +24,12 @@ pub trait IBroker {
         Ok(frame.collect()?)
     }
 
-    fn sanitize(frame: impl crate::IntoLazyFrame) -> LazyFrame {
+    fn sanitize(frame: impl IntoLazy) -> LazyFrame {
         let columns = [
             Date, Action, Ticker, Qty, Price, Amount, Tax, Commission, Country, Currency, Type,
         ]
         .map(|x| col(x.as_str()));
-        frame.into().select(columns).sort(
+        frame.lazy().select(columns).sort(
             [Date.as_str()],
             SortMultipleOptions::new().with_order_descending(false),
         )

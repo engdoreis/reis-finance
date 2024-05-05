@@ -8,8 +8,8 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
-        let orders = orders.into();
+    pub fn from_orders(orders: impl IntoLazy) -> Self {
+        let orders = orders.lazy();
         Dividends {
             data: orders
                 .filter(

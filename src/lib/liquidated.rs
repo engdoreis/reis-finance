@@ -9,8 +9,8 @@ pub struct Profit {
 }
 
 impl Profit {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Result<Self> {
-        let orders: LazyFrame = orders.into();
+    pub fn from_orders(orders: impl IntoLazy) -> Result<Self> {
+        let orders: LazyFrame = orders.lazy();
         let avg = AverageCost::from_orders(orders.clone())
             .with_cumulative()
             .collect()?;

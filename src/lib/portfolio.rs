@@ -15,11 +15,8 @@ pub struct Portfolio {
 }
 
 impl Portfolio {
-    pub fn from_orders(
-        orders: impl crate::IntoLazyFrame,
-        present_date: Option<chrono::NaiveDate>,
-    ) -> Self {
-        let raw_input: LazyFrame = orders.into();
+    pub fn from_orders(orders: impl IntoLazy, present_date: Option<chrono::NaiveDate>) -> Self {
+        let raw_input: LazyFrame = orders.lazy();
         let result = raw_input
             .clone()
             // Filter buy and sell actions.
