@@ -1,4 +1,6 @@
-use crate::schema::{Action, Column};
+use crate::currency;
+use crate::schema::{Action, Column, Currency};
+use crate::scraper::IScraper;
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
@@ -22,6 +24,24 @@ impl Dividends {
         }
     }
 
+    pub fn normalize_currency(
+        mut self,
+        scraper: &mut impl IScraper,
+        currency: Currency,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Result<Self> {
+        self.data = currency::normalize(
+            self.data.clone(),
+            Column::Currency.as_str(),
+            &[col(Column::Amount.as_str()), col(Column::Price.as_str())],
+            currency,
+            scraper,
+            present_date,
+        )?;
+
+        Ok(self)
+    }
+
     pub fn pivot(&self) -> Result<DataFrame> {
         Ok(
             utils::polars::transform::pivot_year_months(&self.data, &[Column::Amount.as_str()])?
@@ -40,6 +60,23 @@ impl Dividends {
             .collect()?;
 
         Ok(result)
+    }
+
+    pub fn collect(self) -> Result<DataFrame> {
+        Ok(self
+            .data
+            .select([
+                col(Column::Date.as_str()),
+                col(Column::Action.as_str()),
+                col(Column::Ticker.as_str()),
+                col(Column::Amount.as_str()),
+            ])
+            .group_by([col(Column::Date.as_str()), col(Column::Ticker.as_str())])
+            .agg([
+                col(Column::Amount.as_str()).sum(),
+                col(Column::Action.as_str()).min(),
+            ])
+            .collect()?)
     }
 }
 

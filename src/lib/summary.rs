@@ -1,5 +1,7 @@
+use crate::currency;
 use crate::schema;
 use crate::schema::Column;
+use crate::scraper::IScraper;
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
@@ -60,14 +62,31 @@ impl Summary {
         Ok(self)
     }
 
-    pub fn with_capital_invested(&mut self, orders: impl IntoLazy) -> Result<&mut Self> {
-        let captal_invested = orders
+    pub fn with_capital_invested(
+        &mut self,
+        orders: impl IntoLazy,
+        currency: schema::Currency,
+        scraper: &mut impl IScraper,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Result<&mut Self> {
+        let mut captal_invested = orders
             .lazy()
             .filter(utils::polars::filter::deposit_and_withdraw())
-            .with_column(utils::polars::compute::negative_amount_on_withdraw())
-            .select([col(Column::Amount.into())
+            .with_column(utils::polars::compute::negative_amount_on_withdraw());
+
+        captal_invested = currency::normalize(
+            captal_invested,
+            schema::Column::Currency.as_str(),
+            &[col(Column::Amount.as_str())],
+            currency,
+            scraper,
+            present_date,
+        )?;
+
+        let captal_invested = captal_invested
+            .select([col(Column::Amount.as_str())
                 .sum()
-                .alias(Column::PrimaryCapital.into())])
+                .alias(Column::PrimaryCapital.as_str())])
             .collect()?;
 
         self.data = polars::functions::concat_df_horizontal(&[
