@@ -62,7 +62,7 @@ pub fn normalize(
             col(EXCHANGE_RATE),
         ]);
 
-    let cols: Vec<_> = columns
+    let convert: Vec<_> = columns
         .iter()
         .map(|column| column.clone() * col(EXCHANGE_RATE))
         .collect();
@@ -74,8 +74,8 @@ pub fn normalize(
             [col(schema::Column::Ticker.into())],
             JoinArgs::new(JoinType::Left),
         )
-        .fill_null(lit(1)) // If not available 1.
-        .with_columns(cols)
+        .with_column(col(EXCHANGE_RATE).fill_null(lit(1))) // If not available 1.
+        .with_columns(convert)
         .with_column(lit(currency.as_str()).alias(by_col))
         .select([col("*").exclude([EXCHANGE_RATE])]);
 

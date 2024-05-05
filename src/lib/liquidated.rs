@@ -1,5 +1,7 @@
+use crate::currency;
 use crate::perpetual_inventory::AverageCost;
-use crate::schema;
+use crate::schema::{Column, Currency};
+use crate::scraper::IScraper;
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
@@ -18,53 +20,73 @@ impl Profit {
         let data = orders
             .filter(utils::polars::filter::buy_or_sell())
             .select([
-                col(schema::Column::Date.into()),
-                col(schema::Column::Ticker.into()),
-                col(schema::Column::Price.into()),
-                col(schema::Column::Qty.into()),
-                col(schema::Column::Amount.into()),
-                col(schema::Column::Action.into()),
+                col(Column::Date.into()),
+                col(Column::Ticker.into()),
+                col(Column::Price.into()),
+                col(Column::Qty.into()),
+                col(Column::Amount.into()),
+                col(Column::Action.into()),
+                col(Column::Currency.into()),
             ])
             .join(
                 avg.lazy().select([
-                    col(schema::Column::Date.into()),
-                    col(schema::Column::Ticker.into()),
-                    col(schema::Column::AveragePrice.into()),
-                    col(schema::Column::Action.into()),
+                    col(Column::Date.into()),
+                    col(Column::Ticker.into()),
+                    col(Column::AveragePrice.into()),
+                    col(Column::Action.into()),
                 ]),
                 [
-                    col(schema::Column::Ticker.into()),
-                    col(schema::Column::Date.into()),
-                    col(schema::Column::Action.into()),
+                    col(Column::Ticker.into()),
+                    col(Column::Date.into()),
+                    col(Column::Action.into()),
                 ],
                 [
-                    col(schema::Column::Ticker.into()),
-                    col(schema::Column::Date.into()),
-                    col(schema::Column::Action.into()),
+                    col(Column::Ticker.into()),
+                    col(Column::Date.into()),
+                    col(Column::Action.into()),
                 ],
                 JoinArgs::new(JoinType::Inner),
             )
             .filter(utils::polars::filter::sell())
             .with_column(utils::polars::compute::sell_profit())
             .select([
-                col(schema::Column::Date.into()),
-                col(schema::Column::Ticker.into()),
-                col(schema::Column::Qty.into()),
-                col(schema::Column::Price.into()),
-                col(schema::Column::Amount.into()),
-                col(schema::Column::Profit.into()),
+                col(Column::Date.into()),
+                col(Column::Ticker.into()),
+                col(Column::Qty.into()),
+                col(Column::Price.into()),
+                col(Column::Amount.into()),
+                col(Column::Currency.into()),
+                col(Column::Profit.into()),
             ]);
-
+        let data = data.collect()?.agg_chunks().lazy();
         Ok(Profit { data })
+    }
+
+    pub fn normalize_currency(
+        mut self,
+        scraper: &mut impl IScraper,
+        currency: Currency,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Result<Self> {
+        self.data = currency::normalize(
+            self.data.clone(),
+            Column::Currency.as_str(),
+            &[col(Column::Amount.as_str()), col(Column::Price.as_str())],
+            currency,
+            scraper,
+            present_date,
+        )?;
+
+        Ok(self)
     }
 
     pub fn pivot(&self) -> Result<DataFrame> {
         Ok(utils::polars::transform::pivot_year_months(
-            &self.data.clone().select([
-                col(schema::Column::Date.as_str()),
-                col(schema::Column::Profit.as_str()),
-            ]),
-            &[schema::Column::Profit.as_str()],
+            &self
+                .data
+                .clone()
+                .select([col(Column::Date.as_str()), col(Column::Profit.as_str())]),
+            &[Column::Profit.as_str()],
         )?
         .collect()?)
     }
@@ -77,7 +99,6 @@ impl Profit {
 #[cfg(test)]
 mod unittest {
     use super::*;
-    use crate::schema::Column;
     use crate::utils;
 
     #[test]
@@ -100,6 +121,7 @@ mod unittest {
             Column::Qty.into() => &[ 3.0, 4.0, 8.0],
             Column::Price.into() => &[134.6, 35.4, 36.4],
             Column::Amount.into() => &[403.8, 141.6, 291.2],
+            Column::Currency.into() => &["USD";3],
             Column::Profit.into() => &[81.36, 2.4, 12.8],
         )
         .unwrap()

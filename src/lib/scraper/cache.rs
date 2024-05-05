@@ -51,10 +51,17 @@ where
     }
 
     fn is_cache_updated(&self, df: &DataFrame, period: &SearchPeriod) -> Result<bool> {
+        let mut end = period.end;
+        adjust_weekday_backward(&mut end);
+        let mut start = period.start;
+        adjust_weekday_backward(&mut start);
+
         let filtered = df
             .clone()
             .lazy()
             .select([col(Column::Ticker.as_str()), col(Column::Date.as_str())])
+            .filter(col(Column::Date.as_str()).lt_eq(lit(end)))
+            .filter(col(Column::Date.as_str()).gt_eq(lit(start)))
             .sort([Column::Date.as_str()], Default::default())
             .group_by([col(Column::Ticker.as_str())])
             .agg([col(Column::Date.as_str()).first()])
@@ -78,13 +85,7 @@ where
             }
         }
 
-        let mut oldest = utils::polars::first_date(&df);
-        adjust_weekday_backward(&mut oldest);
-        let newest = utils::polars::latest_date(&df);
-        let mut end = period.end.clone();
-        adjust_weekday_backward(&mut end);
-        let updated = oldest <= period.start && newest >= end;
-        Ok(updated)
+        Ok(true)
     }
 
     pub async fn load_json(&mut self, file: PathBuf) -> Result<DataFrame> {
@@ -135,8 +136,11 @@ where
     }
 
     fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
-        self.tickers.push(format!("{from}/{to}"));
-        self.inner.with_currency(from, to);
+        let value = format!("{from}/{to}");
+        if !self.tickers.contains(&value) {
+            self.tickers.push(value);
+            self.inner.with_currency(from, to);
+        }
         self
     }
 
@@ -198,13 +202,16 @@ where
             break;
         }
 
+        // TODO: This code is repeated in `is_cache_updated`.
+        let mut start = period.start;
+        adjust_weekday_backward(&mut start);
         let filter = Series::new("filter", self.tickers.clone());
         cached_data.quotes = cached_data
             .quotes
             .lazy()
             .filter(col(Column::Ticker.as_str()).is_in(filter.clone().lit()))
             .filter(col(Column::Date.as_str()).lt_eq(lit(period.end)))
-            .filter(col(Column::Date.as_str()).gt_eq(lit(period.start)))
+            .filter(col(Column::Date.as_str()).gt_eq(lit(start)))
             .collect()?;
 
         if cached_data.dividends.shape().0 > 0 {
@@ -213,7 +220,7 @@ where
                 .lazy()
                 .filter(col(Column::Ticker.as_str()).is_in(filter.lit()))
                 .filter(col(Column::Date.as_str()).lt_eq(lit(period.end)))
-                .filter(col(Column::Date.as_str()).gt_eq(lit(period.start)))
+                .filter(col(Column::Date.as_str()).gt_eq(lit(start)))
                 .collect()?;
         }
         self.reset();

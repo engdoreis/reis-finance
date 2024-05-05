@@ -1,4 +1,4 @@
-use crate::schema::{Action, Column::*};
+use crate::schema::Column::*;
 use anyhow::Result;
 use polars::prelude::*;
 use std::collections::HashMap;

@@ -46,7 +46,9 @@ impl Timeline {
                     .or(col(Column::Date.as_str()).lt_eq(lit(current_date))),
             );
 
-            let dividends = Dividends::from_orders(orders.clone()).by_ticker()?;
+            let dividends = Dividends::from_orders(orders.clone())
+                .normalize_currency(scraper, self.currency, Some(date))?
+                .by_ticker()?;
             let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
 
             let portfolio = Portfolio::from_orders(orders.clone(), Some(current_date))
@@ -60,11 +62,13 @@ impl Timeline {
                 .with_allocation()
                 .collect()?;
 
-            let profit = liquidated::Profit::from_orders(orders.clone())?.collect()?;
+            let profit = liquidated::Profit::from_orders(orders.clone())?
+                .normalize_currency(scraper, self.currency, Some(date))?
+                .collect()?;
 
             let summary = Summary::from_portfolio(portfolio)?
                 .with_dividends(dividends)?
-                .with_capital_invested(orders.clone())?
+                .with_capital_invested(orders.clone(), self.currency, scraper, Some(current_date))?
                 .with_liquidated_profit(profit)?
                 .finish();
 

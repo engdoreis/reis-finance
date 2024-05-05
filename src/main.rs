@@ -109,8 +109,12 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
             .sort([schema::Column::Date.as_str()], Default::default());
     }
 
+    // TODO: This code is repeated in timeline.
     println!("Computing dividends...");
-    let dividends = Dividends::from_orders(orders.clone()).by_ticker().unwrap();
+    let dividends = Dividends::from_orders(orders.clone())
+        .normalize_currency(&mut scraper, args.currency, None)?
+        .by_ticker()?;
+
     println!("Computing uninvested cash...");
     let cash = uninvested::Cash::from_orders(orders.clone())
         .collect()
@@ -130,25 +134,22 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         .collect()?;
 
     println!("Computing profit...");
-    let profit = liquidated::Profit::from_orders(orders.clone())?.collect()?;
+    let profit = liquidated::Profit::from_orders(orders.clone())?
+        .normalize_currency(&mut scraper, args.currency, None)?
+        .collect()?;
 
     println!("Computing summary...");
     let summary = Summary::from_portfolio(portfolio.clone())?
-        .with_dividends(dividends)?
-        .with_capital_invested(orders.clone())?
+        .with_dividends(dividends.clone())?
+        .with_capital_invested(orders.clone(), args.currency, &mut scraper, None)?
         .with_liquidated_profit(profit.clone())?
         .collect()?;
-
-    println!("Pivoting profit...");
-    let profit_pivot = liquidated::Profit::from_orders(orders.clone())?.pivot()?;
-    println!("Pivoting dividends...");
-    let div_pivot = Dividends::from_orders(orders.clone()).pivot()?;
 
     if args.show {
         dbg!(&summary);
         dbg!(&portfolio);
-        dbg!(&profit_pivot);
-        dbg!(&div_pivot);
+        dbg!(&profit);
+        dbg!(&dividends);
     } else {
         let mut sheet = GoogleSheet::new()?;
         println!("Uploading summary...");
@@ -168,9 +169,13 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
             sheet.update_sheets(&timeline)?;
         }
         println!("Uploading profit...");
-        sheet.update_sheets(&profit_pivot)?;
+        sheet.update_sheets(&profit)?;
         println!("Uploading dividends...");
-        sheet.update_sheets(&div_pivot)?;
+        sheet.update_sheets(&dividends)?;
+        let dividends = Dividends::from_orders(orders.clone())
+            .normalize_currency(&mut scraper, args.currency, None)?
+            .collect()?;
+        sheet.update_sheets(&dividends)?;
     }
 
     Ok(())
