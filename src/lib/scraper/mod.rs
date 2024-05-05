@@ -111,11 +111,11 @@ impl SearchPeriod {
 }
 
 pub async fn load_data<T: IScraper>(
-    orders: impl crate::IntoLazyFrame,
+    orders: impl IntoLazy,
     scraper: &mut T,
     present_date: Option<chrono::NaiveDate>,
 ) -> Result<ScraperData> {
-    let df = orders.into();
+    let df = orders.lazy();
     let df = df
         .filter(utils::polars::filter::buy_or_sell())
         .select([

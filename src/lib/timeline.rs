@@ -15,9 +15,9 @@ pub struct Timeline {
 }
 
 impl Timeline {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame, currency: schema::Currency) -> Self {
+    pub fn from_orders(orders: impl IntoLazy, currency: schema::Currency) -> Self {
         Timeline {
-            orders: orders.into(),
+            orders: orders.lazy(),
             currency,
         }
     }

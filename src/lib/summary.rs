@@ -11,9 +11,9 @@ pub struct Summary {
 }
 
 impl Summary {
-    pub fn from_portfolio(portfolio: impl crate::IntoLazyFrame) -> Result<Self> {
+    pub fn from_portfolio(portfolio: impl IntoLazy) -> Result<Self> {
         Ok(Summary {
-            data: portfolio.into().select([
+            data: portfolio.lazy().select([
                 (col(Column::AveragePrice.into()) * col(Column::AccruedQty.into()))
                     .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
@@ -33,14 +33,11 @@ impl Summary {
         })
     }
 
-    pub fn with_liquidated_profit(
-        &mut self,
-        profit: impl crate::IntoLazyFrame,
-    ) -> Result<&mut Self> {
+    pub fn with_liquidated_profit(&mut self, profit: impl IntoLazy) -> Result<&mut Self> {
         self.data = polars::functions::concat_df_horizontal(&[
             self.data.clone().collect()?,
             profit
-                .into()
+                .lazy()
                 .select([col(Column::Profit.into())
                     .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
@@ -51,11 +48,11 @@ impl Summary {
         Ok(self)
     }
 
-    pub fn with_dividends(&mut self, dividends: impl crate::IntoLazyFrame) -> Result<&mut Self> {
+    pub fn with_dividends(&mut self, dividends: impl IntoLazy) -> Result<&mut Self> {
         self.data = polars::functions::concat_df_horizontal(&[
             self.data.clone().collect()?,
             dividends
-                .into()
+                .lazy()
                 .select([col(Column::Dividends.into()).sum()])
                 .collect()?,
         ])?
@@ -63,12 +60,9 @@ impl Summary {
         Ok(self)
     }
 
-    pub fn with_capital_invested(
-        &mut self,
-        orders: impl crate::IntoLazyFrame,
-    ) -> Result<&mut Self> {
+    pub fn with_capital_invested(&mut self, orders: impl IntoLazy) -> Result<&mut Self> {
         let captal_invested = orders
-            .into()
+            .lazy()
             .filter(utils::polars::filter::deposit_and_withdraw())
             .with_column(utils::polars::compute::negative_amount_on_withdraw())
             .select([col(Column::Amount.into())

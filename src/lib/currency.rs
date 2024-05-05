@@ -1,19 +1,19 @@
 use crate::schema;
 use crate::scraper::{self, IScraper};
 use crate::utils;
-use crate::IntoLazyFrame;
 use anyhow::{Context, Result};
 use polars::prelude::*;
+use IntoLazy;
 
 pub fn normalize(
-    table: impl IntoLazyFrame,
+    table: impl IntoLazy,
     by_col: &str,
     columns: &[Expr],
     currency: schema::Currency,
     scraper: &mut impl IScraper,
     present_date: Option<chrono::NaiveDate>,
 ) -> Result<LazyFrame> {
-    let table = table.into_lazy();
+    let table = table.lazy();
 
     let data_frame = table.clone().collect()?;
     let currencies = utils::polars::column_str(&data_frame, by_col)?;

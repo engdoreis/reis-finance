@@ -7,13 +7,13 @@ use polars::prelude::*;
 use reis_finance_lib::broker::{IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
 use reis_finance_lib::googlesheet::GoogleSheet;
+use reis_finance_lib::liquidated;
 use reis_finance_lib::portfolio::Portfolio;
 use reis_finance_lib::schema;
 use reis_finance_lib::scraper::{self, Cache, Yahoo};
 use reis_finance_lib::summary::Summary;
 use reis_finance_lib::timeline::Timeline;
 use reis_finance_lib::uninvested;
-use reis_finance_lib::{liquidated, IntoLazyFrame};
 
 use clap::Parser;
 use std::path::PathBuf;
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
     }
 }
 
-fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
+fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
     let mut scraper = Yahoo::new();
     let mut scraper = Cache::new(
         scraper,
@@ -80,7 +80,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
     );
     let mut df = LazyFrame::default();
     for lf in orders {
-        df = concat([df, lf.into_lazy()], Default::default())?;
+        df = concat([df, lf.lazy()], Default::default())?;
     }
     let mut orders = df
         .sort([schema::Column::Date.as_str()], Default::default())

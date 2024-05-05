@@ -10,9 +10,9 @@ pub struct AverageCost {
 }
 
 impl AverageCost {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+    pub fn from_orders(orders: impl IntoLazy) -> Self {
         Self {
-            data: orders.into(),
+            data: orders.lazy(),
         }
     }
     /// The Perpetual inventory average cost can be computed by the formula:
