@@ -90,7 +90,7 @@ mod unittest {
             .unwrap()
             .lazy()
             .with_column(dtype_col(&DataType::Float64).round(4))
-            .sort(Column::Date.into(), SortOptions::default())
+            .sort([Column::Date.as_str()], Default::default())
             .collect()
             .unwrap();
 

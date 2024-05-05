@@ -97,7 +97,7 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .sort(schema::Column::Currency.into(), SortOptions::default())
+            .sort([schema::Column::Currency.as_str()], Default::default())
             .collect()
             .unwrap();
 

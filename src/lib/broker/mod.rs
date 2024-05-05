@@ -8,7 +8,7 @@ pub use trading212::Trading212;
 use crate::schema::Column::*;
 use anyhow::Result;
 use glob::glob;
-use polars::prelude::{col, concat, DataFrame, IntoLazy, SortOptions};
+use polars::prelude::*;
 use std::path::Path;
 
 pub trait IBroker {
@@ -30,11 +30,8 @@ pub trait IBroker {
         ]
         .map(|x| col(x.as_str()));
         frame.into().select(columns).sort(
-            Date.into(),
-            SortOptions {
-                descending: false,
-                ..SortOptions::default()
-            },
+            [Date.as_str()],
+            SortMultipleOptions::new().with_order_descending(false),
         )
     }
 }

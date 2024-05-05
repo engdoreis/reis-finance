@@ -61,7 +61,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -70,7 +70,7 @@ mod unittest {
             Column::Dividends.into() => &[2.75, 3.26],
         )
         .unwrap()
-        .sort(&[Column::Ticker.as_str()], false, false)
+        .sort(&[Column::Ticker.as_str()], Default::default())
         .unwrap();
         assert_eq!(expected, result);
     }

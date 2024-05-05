@@ -44,7 +44,7 @@ impl ScraperData {
                 Default::default(),
             )?
             .unique(None, UniqueKeepStrategy::First)
-            .sort(schema::Column::Date.into(), SortOptions::default())
+            .sort([schema::Column::Date.as_str()], Default::default())
             .collect()?;
         }
 
@@ -58,7 +58,7 @@ impl ScraperData {
                 Default::default(),
             )?
             .unique(None, UniqueKeepStrategy::First)
-            .sort(schema::Column::Date.into(), SortOptions::default())
+            .sort([schema::Column::Date.as_str()], Default::default())
             .collect()?;
         }
         Ok(self)
@@ -71,7 +71,7 @@ impl ScraperData {
                 Default::default(),
             )?
             .unique(None, UniqueKeepStrategy::First)
-            .sort(schema::Column::Date.into(), SortOptions::default())
+            .sort([schema::Column::Date.as_str()], Default::default())
             .collect()?;
         }
         Ok(self)
