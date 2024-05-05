@@ -55,7 +55,7 @@ where
             .clone()
             .lazy()
             .select([col(Column::Ticker.as_str()), col(Column::Date.as_str())])
-            .sort(Column::Date.as_str(), Default::default())
+            .sort([Column::Date.as_str()], Default::default())
             .group_by([col(Column::Ticker.as_str())])
             .agg([col(Column::Date.as_str()).first()])
             .collect()
@@ -164,7 +164,6 @@ where
                     .load_json(self.splits_cache.clone())
                     .await
                     .unwrap_or_default();
-                // dbg!(&cached_data.splits);
                 cached_data.concat_splits(splits)?;
                 let dividends = self
                     .load_json(self.dividends_cache.clone())

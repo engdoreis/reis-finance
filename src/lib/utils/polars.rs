@@ -255,9 +255,9 @@ pub mod transform {
 
         let result = pivot(
             &result,
-            value_columns,
             ["Year"],
             ["Month"],
+            Some(value_columns),
             false,
             Some(PivotAgg::Sum),
             None,

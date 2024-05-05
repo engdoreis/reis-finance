@@ -83,7 +83,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
         df = concat([df, lf.into_lazy()], Default::default())?;
     }
     let mut orders = df
-        .sort(schema::Column::Date.as_str(), Default::default())
+        .sort([schema::Column::Date.as_str()], Default::default())
         .collect()
         .unwrap()
         .lazy();
@@ -106,7 +106,7 @@ fn execute(orders: Vec<impl IntoLazyFrame>, args: &Args) -> Result<()> {
             lit(schema::Type::Stock.as_str()).alias(schema::Column::Type.as_str()),
         ]);
         orders = concat([orders, splits], Default::default())?
-            .sort(schema::Column::Date.as_str(), Default::default());
+            .sort([schema::Column::Date.as_str()], Default::default());
     }
 
     println!("Computing dividends...");

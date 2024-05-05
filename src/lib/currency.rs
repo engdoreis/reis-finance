@@ -40,7 +40,10 @@ pub fn normalize(
         .group_by([col(schema::Column::Ticker.as_str())])
         .agg([
             col(schema::Column::Date.as_str())
-                .sort_by([col(schema::Column::Date.as_str())], [true])
+                .sort_by(
+                    [col(schema::Column::Date.as_str())],
+                    SortMultipleOptions::default(),
+                )
                 .first(),
             col(schema::Column::Price.as_str())
                 .last()
