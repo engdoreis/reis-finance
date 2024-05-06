@@ -41,6 +41,7 @@ where
     T: IScraper + std::marker::Send,
 {
     pub fn new(inner: T, cache_dir: PathBuf) -> Self {
+        std::fs::create_dir_all(&cache_dir).expect("Can't create cache dir");
         Self {
             inner,
             quotes_cache: cache_dir.join("quotes.json"),
