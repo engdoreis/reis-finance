@@ -15,11 +15,8 @@ pub struct Portfolio {
 }
 
 impl Portfolio {
-    pub fn from_orders(
-        orders: impl crate::IntoLazyFrame,
-        present_date: Option<chrono::NaiveDate>,
-    ) -> Self {
-        let raw_input: LazyFrame = orders.into();
+    pub fn from_orders(orders: impl IntoLazy, present_date: Option<chrono::NaiveDate>) -> Self {
+        let raw_input: LazyFrame = orders.lazy();
         let result = raw_input
             .clone()
             // Filter buy and sell actions.
@@ -38,7 +35,10 @@ impl Portfolio {
                 col(schema::Column::Currency.into()).last(),
             ])
             .filter(col(schema::Column::AccruedQty.into()).gt(lit(0)))
-            .sort(schema::Column::Ticker.into(), SortOptions::default());
+            .sort(
+                [schema::Column::Ticker.as_str()],
+                SortMultipleOptions::default(),
+            );
 
         Portfolio {
             working_frame: result,
@@ -62,8 +62,11 @@ impl Portfolio {
                 col(schema::Column::MarketPriceCurrency.as_str()),
             ])
             .agg([col(schema::Column::Price.as_str())
-                .sort_by([col(schema::Column::Date.as_str())], [true])
-                .first()
+                .sort_by(
+                    [col(schema::Column::Date.as_str())],
+                    SortMultipleOptions::default(),
+                )
+                .last()
                 .alias(schema::Column::MarketPrice.into())]);
         let result = self.working_frame.collect()?;
 
@@ -178,6 +181,8 @@ impl Portfolio {
         scraper: &mut impl IScraper,
         currency: schema::Currency,
     ) -> Result<Self> {
+        self.working_frame = self.working_frame.collect()?.agg_chunks().lazy();
+
         let mut frame = currency::normalize(
             self.working_frame.clone(),
             schema::Column::Currency.as_str(),
@@ -283,7 +288,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -320,7 +325,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -360,7 +365,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(2),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -405,7 +410,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -445,7 +450,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -495,7 +500,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 

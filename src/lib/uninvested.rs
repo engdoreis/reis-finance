@@ -8,8 +8,8 @@ pub struct Cash {
 }
 
 impl Cash {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
-        let orders: LazyFrame = orders.into();
+    pub fn from_orders(orders: impl IntoLazy) -> Self {
+        let orders: LazyFrame = orders.lazy();
         Self {
             data: orders
                 .filter(
@@ -97,7 +97,7 @@ mod unittest {
             .collect()
             .unwrap()
             .lazy()
-            .sort(schema::Column::Currency.into(), SortOptions::default())
+            .sort([schema::Column::Currency.as_str()], Default::default())
             .collect()
             .unwrap();
 

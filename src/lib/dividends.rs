@@ -1,4 +1,6 @@
-use crate::schema::{Action, Column};
+use crate::currency;
+use crate::schema::{Action, Column, Currency};
+use crate::scraper::IScraper;
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
@@ -8,8 +10,8 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
-        let orders = orders.into();
+    pub fn from_orders(orders: impl IntoLazy) -> Self {
+        let orders = orders.lazy();
         Dividends {
             data: orders
                 .filter(
@@ -20,6 +22,24 @@ impl Dividends {
                 )
                 .with_column(utils::polars::compute::negative_amount_on_tax()),
         }
+    }
+
+    pub fn normalize_currency(
+        mut self,
+        scraper: &mut impl IScraper,
+        currency: Currency,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Result<Self> {
+        self.data = currency::normalize(
+            self.data.clone(),
+            Column::Currency.as_str(),
+            &[col(Column::Amount.as_str()), col(Column::Price.as_str())],
+            currency,
+            scraper,
+            present_date,
+        )?;
+
+        Ok(self)
     }
 
     pub fn pivot(&self) -> Result<DataFrame> {
@@ -41,6 +61,23 @@ impl Dividends {
 
         Ok(result)
     }
+
+    pub fn collect(self) -> Result<DataFrame> {
+        Ok(self
+            .data
+            .select([
+                col(Column::Date.as_str()),
+                col(Column::Action.as_str()),
+                col(Column::Ticker.as_str()),
+                col(Column::Amount.as_str()),
+            ])
+            .group_by([col(Column::Date.as_str()), col(Column::Ticker.as_str())])
+            .agg([
+                col(Column::Amount.as_str()).sum(),
+                col(Column::Action.as_str()).min(),
+            ])
+            .collect()?)
+    }
 }
 
 #[cfg(test)]
@@ -61,7 +98,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -70,7 +107,7 @@ mod unittest {
             Column::Dividends.into() => &[2.75, 3.26],
         )
         .unwrap()
-        .sort(&[Column::Ticker.as_str()], false, false)
+        .sort(&[Column::Ticker.as_str()], Default::default())
         .unwrap();
         assert_eq!(expected, result);
     }

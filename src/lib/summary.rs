@@ -1,5 +1,7 @@
+use crate::currency;
 use crate::schema;
 use crate::schema::Column;
+use crate::scraper::IScraper;
 use crate::utils;
 use anyhow::Result;
 use polars::prelude::*;
@@ -11,9 +13,9 @@ pub struct Summary {
 }
 
 impl Summary {
-    pub fn from_portfolio(portfolio: impl crate::IntoLazyFrame) -> Result<Self> {
+    pub fn from_portfolio(portfolio: impl IntoLazy) -> Result<Self> {
         Ok(Summary {
-            data: portfolio.into().select([
+            data: portfolio.lazy().select([
                 (col(Column::AveragePrice.into()) * col(Column::AccruedQty.into()))
                     .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
@@ -33,14 +35,11 @@ impl Summary {
         })
     }
 
-    pub fn with_liquidated_profit(
-        &mut self,
-        profit: impl crate::IntoLazyFrame,
-    ) -> Result<&mut Self> {
+    pub fn with_liquidated_profit(&mut self, profit: impl IntoLazy) -> Result<&mut Self> {
         self.data = polars::functions::concat_df_horizontal(&[
             self.data.clone().collect()?,
             profit
-                .into()
+                .lazy()
                 .select([col(Column::Profit.into())
                     .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
                     .sum()
@@ -51,11 +50,11 @@ impl Summary {
         Ok(self)
     }
 
-    pub fn with_dividends(&mut self, dividends: impl crate::IntoLazyFrame) -> Result<&mut Self> {
+    pub fn with_dividends(&mut self, dividends: impl IntoLazy) -> Result<&mut Self> {
         self.data = polars::functions::concat_df_horizontal(&[
             self.data.clone().collect()?,
             dividends
-                .into()
+                .lazy()
                 .select([col(Column::Dividends.into()).sum()])
                 .collect()?,
         ])?
@@ -65,15 +64,29 @@ impl Summary {
 
     pub fn with_capital_invested(
         &mut self,
-        orders: impl crate::IntoLazyFrame,
+        orders: impl IntoLazy,
+        currency: schema::Currency,
+        scraper: &mut impl IScraper,
+        present_date: Option<chrono::NaiveDate>,
     ) -> Result<&mut Self> {
-        let captal_invested = orders
-            .into()
+        let mut captal_invested = orders
+            .lazy()
             .filter(utils::polars::filter::deposit_and_withdraw())
-            .with_column(utils::polars::compute::negative_amount_on_withdraw())
-            .select([col(Column::Amount.into())
+            .with_column(utils::polars::compute::negative_amount_on_withdraw());
+
+        captal_invested = currency::normalize(
+            captal_invested,
+            schema::Column::Currency.as_str(),
+            &[col(Column::Amount.as_str())],
+            currency,
+            scraper,
+            present_date,
+        )?;
+
+        let captal_invested = captal_invested
+            .select([col(Column::Amount.as_str())
                 .sum()
-                .alias(Column::PrimaryCapital.into())])
+                .alias(Column::PrimaryCapital.as_str())])
             .collect()?;
 
         self.data = polars::functions::concat_df_horizontal(&[

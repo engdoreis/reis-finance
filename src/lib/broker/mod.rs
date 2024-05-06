@@ -8,7 +8,7 @@ pub use trading212::Trading212;
 use crate::schema::Column::*;
 use anyhow::Result;
 use glob::glob;
-use polars::prelude::{col, concat, DataFrame, IntoLazy, SortOptions};
+use polars::prelude::*;
 use std::path::Path;
 
 pub trait IBroker {
@@ -24,17 +24,14 @@ pub trait IBroker {
         Ok(frame.collect()?)
     }
 
-    fn sanitize(frame: impl crate::IntoLazyFrame) -> LazyFrame {
+    fn sanitize(frame: impl IntoLazy) -> LazyFrame {
         let columns = [
             Date, Action, Ticker, Qty, Price, Amount, Tax, Commission, Country, Currency, Type,
         ]
         .map(|x| col(x.as_str()));
-        frame.into().select(columns).sort(
-            Date.into(),
-            SortOptions {
-                descending: false,
-                ..SortOptions::default()
-            },
+        frame.lazy().select(columns).sort(
+            [Date.as_str()],
+            SortMultipleOptions::new().with_order_descending(false),
         )
     }
 }

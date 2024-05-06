@@ -1,3 +1,4 @@
+use crate::schema::Column::*;
 use anyhow::Result;
 use polars::prelude::*;
 use std::collections::HashMap;
@@ -97,6 +98,24 @@ pub fn column_date(df: &DataFrame, name: &str) -> Result<Vec<chrono::NaiveDate>>
                 .date_naive()
         })
         .collect())
+}
+
+pub fn first_date(df: &DataFrame) -> chrono::NaiveDate {
+    let mut oldest: Vec<_> = column_date(df, Date.as_str()).expect("Failed to collect dates");
+    oldest.sort();
+    oldest
+        .first()
+        .expect("Failed to collect oldest date")
+        .to_owned()
+}
+
+pub fn latest_date(df: &DataFrame) -> chrono::NaiveDate {
+    let mut oldest: Vec<_> = column_date(df, Date.as_str()).expect("Failed to collect dates");
+    oldest.sort();
+    oldest
+        .last()
+        .expect("Failed to collect oldest date")
+        .to_owned()
 }
 
 pub mod compute {
@@ -236,9 +255,9 @@ pub mod transform {
 
         let result = pivot(
             &result,
-            value_columns,
             ["Year"],
             ["Month"],
+            Some(value_columns),
             false,
             Some(PivotAgg::Sum),
             None,

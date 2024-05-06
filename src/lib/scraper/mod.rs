@@ -44,7 +44,7 @@ impl ScraperData {
                 Default::default(),
             )?
             .unique(None, UniqueKeepStrategy::First)
-            .sort(schema::Column::Date.into(), SortOptions::default())
+            .sort([schema::Column::Date.as_str()], Default::default())
             .collect()?;
         }
 
@@ -58,7 +58,7 @@ impl ScraperData {
                 Default::default(),
             )?
             .unique(None, UniqueKeepStrategy::First)
-            .sort(schema::Column::Date.into(), SortOptions::default())
+            .sort([schema::Column::Date.as_str()], Default::default())
             .collect()?;
         }
         Ok(self)
@@ -71,7 +71,7 @@ impl ScraperData {
                 Default::default(),
             )?
             .unique(None, UniqueKeepStrategy::First)
-            .sort(schema::Column::Date.into(), SortOptions::default())
+            .sort([schema::Column::Date.as_str()], Default::default())
             .collect()?;
         }
         Ok(self)
@@ -111,11 +111,11 @@ impl SearchPeriod {
 }
 
 pub async fn load_data<T: IScraper>(
-    orders: impl crate::IntoLazyFrame,
+    orders: impl IntoLazy,
     scraper: &mut T,
     present_date: Option<chrono::NaiveDate>,
 ) -> Result<ScraperData> {
-    let df = orders.into();
+    let df = orders.lazy();
     let df = df
         .filter(utils::polars::filter::buy_or_sell())
         .select([
@@ -143,10 +143,7 @@ pub async fn load_data<T: IScraper>(
         .map(str::to_owned)
         .collect();
 
-    let mut oldest: Vec<_> = utils::polars::column_date(&df, schema::Column::Date.as_str())
-        .expect("Failed to collect dates");
-    oldest.sort();
-    let oldest = oldest.first().expect("Failed to collect oldest date");
+    let oldest = utils::polars::first_date(&df);
 
     let result = scraper
         .with_ticker(
@@ -158,7 +155,7 @@ pub async fn load_data<T: IScraper>(
                     .collect::<Vec<schema::Country>>(),
             ),
         )
-        .load(SearchPeriod::new(Some(*oldest), present_date, Some(1)))
+        .load(SearchPeriod::new(Some(oldest), present_date, Some(1)))
         .await?;
 
     Ok(result)

@@ -10,9 +10,9 @@ pub struct AverageCost {
 }
 
 impl AverageCost {
-    pub fn from_orders(orders: impl crate::IntoLazyFrame) -> Self {
+    pub fn from_orders(orders: impl IntoLazy) -> Self {
         Self {
-            data: orders.into(),
+            data: orders.lazy(),
         }
     }
     /// The Perpetual inventory average cost can be computed by the formula:
@@ -127,7 +127,7 @@ mod unittest {
                 col(Column::Ticker.into()),
                 dtype_col(&DataType::Float64).round(4),
             ])
-            .sort(Column::Ticker.into(), SortOptions::default())
+            .sort([Column::Ticker.as_str()], Default::default())
             .collect()
             .unwrap();
 
@@ -137,7 +137,7 @@ mod unittest {
             Column::AccruedQty.into() => &[13.20, 10.0],
         )
         .unwrap()
-        .sort(&[Column::Ticker.as_str()], false, false)
+        .sort(&[Column::Ticker.as_str()], Default::default())
         .unwrap();
 
         assert_eq!(expected, result);

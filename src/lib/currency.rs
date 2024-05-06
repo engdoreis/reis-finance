@@ -1,19 +1,19 @@
 use crate::schema;
 use crate::scraper::{self, IScraper};
 use crate::utils;
-use crate::IntoLazyFrame;
 use anyhow::{Context, Result};
 use polars::prelude::*;
+use IntoLazy;
 
 pub fn normalize(
-    table: impl IntoLazyFrame,
+    table: impl IntoLazy,
     by_col: &str,
     columns: &[Expr],
     currency: schema::Currency,
     scraper: &mut impl IScraper,
     present_date: Option<chrono::NaiveDate>,
 ) -> Result<LazyFrame> {
-    let table = table.into_lazy();
+    let table = table.lazy();
 
     let data_frame = table.clone().collect()?;
     let currencies = utils::polars::column_str(&data_frame, by_col)?;
@@ -40,7 +40,10 @@ pub fn normalize(
         .group_by([col(schema::Column::Ticker.as_str())])
         .agg([
             col(schema::Column::Date.as_str())
-                .sort_by([col(schema::Column::Date.as_str())], [true])
+                .sort_by(
+                    [col(schema::Column::Date.as_str())],
+                    SortMultipleOptions::default(),
+                )
                 .first(),
             col(schema::Column::Price.as_str())
                 .last()
@@ -59,7 +62,7 @@ pub fn normalize(
             col(EXCHANGE_RATE),
         ]);
 
-    let cols: Vec<_> = columns
+    let convert: Vec<_> = columns
         .iter()
         .map(|column| column.clone() * col(EXCHANGE_RATE))
         .collect();
@@ -71,8 +74,8 @@ pub fn normalize(
             [col(schema::Column::Ticker.into())],
             JoinArgs::new(JoinType::Left),
         )
-        .fill_null(lit(1)) // If not available 1.
-        .with_columns(cols)
+        .with_column(col(EXCHANGE_RATE).fill_null(lit(1))) // If not available 1.
+        .with_columns(convert)
         .with_column(lit(currency.as_str()).alias(by_col))
         .select([col("*").exclude([EXCHANGE_RATE])]);
 
