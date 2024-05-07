@@ -191,7 +191,7 @@ impl GoogleSheet {
         Ok(())
     }
 
-    pub fn column_name(column: u32) -> String {
+    fn column_name(column: u32) -> String {
         let column = column - 1;
         if column < 26 {
             std::char::from_u32(65 + column).unwrap().to_string()
