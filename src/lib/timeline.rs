@@ -109,7 +109,6 @@ mod unittest {
     fn timeline_summary_success() {
         let orders = utils::test::generate_mocking_orders();
         let mut scraper = utils::test::mock::Scraper::new();
-        dbg!(&orders);
 
         let data = scraper
             .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
