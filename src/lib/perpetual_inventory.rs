@@ -12,7 +12,9 @@ pub struct AverageCost {
 impl AverageCost {
     pub fn from_orders(orders: impl IntoLazy) -> Self {
         Self {
-            data: orders.lazy(),
+            data: orders
+                .lazy()
+                .sort([schema::Column::Date.as_str()], Default::default()),
         }
     }
     /// The Perpetual inventory average cost can be computed by the formula:
@@ -133,7 +135,7 @@ mod unittest {
 
         let expected = df! (
             Column::Ticker.into() => &["APPL", "GOOGL"],
-            Column::AveragePrice.into() => &[98.03, 69.10],
+            Column::AveragePrice.into() => &[98.03, 69.2875],
             Column::AccruedQty.into() => &[13.20, 10.0],
         )
         .unwrap()
