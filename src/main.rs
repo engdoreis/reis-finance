@@ -18,6 +18,7 @@ use reis_finance_lib::uninvested;
 use clap::Parser;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::thread::current;
 
 // Define a struct to represent command-line options
 #[derive(Parser, Debug)]
@@ -42,6 +43,10 @@ struct Args {
     /// Whether to print the report or not.
     #[arg(short, long, default_value = "false")]
     show: bool,
+
+    /// Filter-out transactions after the date.
+    #[arg(short, long, value_parser = chrono::NaiveDate::from_str)]
+    date: Option<chrono::NaiveDate>,
 }
 
 fn main() -> Result<()> {
@@ -82,15 +87,22 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
     for lf in orders {
         df = concat([df, lf.lazy()], Default::default())?;
     }
+
+    let current_date = args.date.unwrap_or(chrono::Local::now().date_naive());
     let mut orders = df
         .sort([schema::Column::Date.as_str()], Default::default())
         .collect()
         .unwrap()
-        .lazy();
+        .lazy()
+        .filter(
+            col(schema::Column::Action.as_str())
+                .eq(lit(schema::Action::Split.as_str()))
+                .or(col(schema::Column::Date.as_str()).lt_eq(lit(current_date))),
+        );
 
     println!("Loading market data...");
     let scraped_data =
-        tokio_test::block_on(scraper::load_data(orders.clone(), &mut scraper, None))?;
+        tokio_test::block_on(scraper::load_data(orders.clone(), &mut scraper, args.date))?;
     if scraped_data.splits.shape().0 > 0 {
         let splits = scraped_data.splits.clone().lazy().select([
             col(schema::Column::Date.as_str()),
@@ -112,7 +124,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
     // TODO: This code is repeated in timeline.
     println!("Computing dividends...");
     let dividends = Dividends::from_orders(orders.clone())
-        .normalize_currency(&mut scraper, args.currency, None)?
+        .normalize_currency(&mut scraper, args.currency, args.date)?
         .by_ticker()?;
 
     println!("Computing uninvested cash...");
@@ -121,7 +133,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         .unwrap();
 
     println!("Computing portfolio...");
-    let portfolio = Portfolio::from_orders(orders.clone(), None)
+    let portfolio = Portfolio::from_orders(orders.clone(), args.date)
         .with_quotes(&scraped_data.quotes)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
@@ -135,13 +147,13 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
 
     println!("Computing profit...");
     let profit = liquidated::Profit::from_orders(orders.clone())?
-        .normalize_currency(&mut scraper, args.currency, None)?
+        .normalize_currency(&mut scraper, args.currency, args.date)?
         .collect()?;
 
     println!("Computing summary...");
     let summary = Summary::from_portfolio(portfolio.clone())?
         .with_dividends(dividends.clone())?
-        .with_capital_invested(orders.clone(), args.currency, &mut scraper, None)?
+        .with_capital_invested(orders.clone(), args.currency, &mut scraper, args.date)?
         .with_liquidated_profit(profit.clone())?
         .collect()?;
 
@@ -173,7 +185,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         println!("Uploading dividends...");
         sheet.update_sheets(&dividends)?;
         let dividends = Dividends::from_orders(orders.clone())
-            .normalize_currency(&mut scraper, args.currency, None)?
+            .normalize_currency(&mut scraper, args.currency, args.date)?
             .collect()?;
         sheet.update_sheets(&dividends)?;
     }
