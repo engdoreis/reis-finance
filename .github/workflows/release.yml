@@ -1,0 +1,40 @@
+name: Generate Binary on Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  ubuntu-build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Build Binary
+      run: |
+        cargo build --release
+
+    - name: Upload Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: reis_finance_cli
+        path: target/release/
+
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Build Binary
+      run: |
+        cargo build --release
+
+    - name: Upload Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: reis_finance_cli
+        path: target/release/
