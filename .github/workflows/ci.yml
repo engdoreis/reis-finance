@@ -1,4 +1,4 @@
-name: Rust
+name: CI
 
 on:
   push:
@@ -11,9 +11,7 @@ env:
 
 jobs:
   ubuntu-build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
     - name: Build
@@ -22,9 +20,7 @@ jobs:
       run: cargo test --verbose
 
   windows-build:
-
     runs-on: windows-latest
-
     steps:
     - uses: actions/checkout@v4
     - name: Build
