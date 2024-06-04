@@ -24,7 +24,7 @@ impl Yahoo {
         Self {
             tickers: Vec::new(),
             countries: Vec::new(),
-            provider: yahoo::YahooConnector::new(),
+            provider: yahoo::YahooConnector::new().expect("Failed to connect Yahoo API"),
         }
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "reis-finance"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [lib]
@@ -34,4 +34,4 @@ strum = {version = "0.25.0", features = ["derive"]}
 time = {version="0.3.31", features = ["parsing", "formatting"]}
 tokio = "1.37.0"
 tokio-test = "0.4.3"
-yahoo_finance_api = "2.1.0"
+yahoo_finance_api =  { git = "https://github.com/xemwebe/yahoo_finance_api.git", rev = "cf6bceb4ac9eabdddf915f353711dffbc6243722" }
