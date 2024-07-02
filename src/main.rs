@@ -18,7 +18,6 @@ use reis_finance_lib::uninvested;
 use clap::Parser;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::thread::current;
 
 // Define a struct to represent command-line options
 #[derive(Parser, Debug)]
