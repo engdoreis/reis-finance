@@ -91,8 +91,13 @@ impl GoogleSheet {
                         token.refresh_token,
                     );
 
-                    tokio_test::block_on(client.refresh_access_token()).unwrap();
-                    return Ok(client);
+                    if let Ok(token) = tokio_test::block_on(client.refresh_access_token()) {
+                        println!("refreshed token={token:?}");
+                        if Some(false) == tokio_test::block_on(client.is_expired()){
+                            return Ok(client);
+                        }
+                    }
+                    println!("Can't refresh access token")
                 }
             }
 
@@ -134,7 +139,7 @@ impl GoogleSheet {
                 tokio_test::block_on(client.get_access_token(&caps["code"], &caps["state"]))
                     .unwrap();
             let contents = serde_json::to_string_pretty(&access_token)?;
-            std::fs::write(TOKEN_FILE, &contents)?;
+            std::fs::write(dirs::home_dir().unwrap().join(TOKEN_FILE), &contents)?;
         }
     }
 
