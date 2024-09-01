@@ -93,7 +93,7 @@ impl GoogleSheet {
 
                     if let Ok(token) = tokio_test::block_on(client.refresh_access_token()) {
                         println!("refreshed token={token:?}");
-                        if Some(false) == tokio_test::block_on(client.is_expired()){
+                        if Some(false) == tokio_test::block_on(client.is_expired()) {
                             return Ok(client);
                         }
                     }
