@@ -43,6 +43,10 @@ struct Args {
     #[arg(short, long, default_value = "false")]
     show: bool,
 
+    /// Whether to use the cache for prices.
+    #[arg(long, default_value = "false")]
+    cache: bool,
+
     /// Filter-out transactions after the date.
     #[arg(short, long, value_parser = chrono::NaiveDate::from_str)]
     date: Option<chrono::NaiveDate>,
@@ -77,11 +81,15 @@ fn main() -> Result<()> {
 }
 
 fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
-    let mut scraper = Yahoo::new();
-    let mut scraper = Cache::new(
-        scraper,
-        dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
-    );
+    let mut scraper = if args.cache {
+        either::Right(Cache::new(
+            Yahoo::new(),
+            dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
+        ))
+    } else {
+        either::Left(Yahoo::new())
+    };
+
     let mut df = LazyFrame::default();
     for lf in orders {
         df = concat([df, lf.lazy()], Default::default())?;
