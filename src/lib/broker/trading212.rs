@@ -2,6 +2,7 @@ use super::IBroker;
 use crate::schema::{self, Action, Column, Currency, Type};
 use crate::utils;
 
+use anyhow::Context;
 use anyhow::Result;
 use polars::prelude::*;
 use std::path::Path;
@@ -39,10 +40,10 @@ impl Trading212 {
 impl IBroker for Trading212 {
     fn load_from_csv(&self, csv_file: &Path) -> Result<DataFrame> {
         // Workarrow: Remove rows with the string 'Not available'.
-        let content = std::fs::read_to_string(csv_file)?;
-        let csv_file = Path::new("./tmp.csv");
+        let content = std::fs::read_to_string(csv_file).context(format!("{:?}", csv_file))?;
         let content = content.replace("Not available", "");
-        std::fs::write(csv_file, content)?;
+        let file = temp_file::with_contents(content.as_bytes());
+        let csv_file = file.path();
 
         let df = LazyCsvReader::new(csv_file)
             .has_header(true)
