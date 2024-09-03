@@ -130,7 +130,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
 
     // TODO: This code is repeated in timeline.
     println!("Computing dividends...");
-    let dividends = Dividends::from_orders(orders.clone())
+    let dividends = Dividends::try_from_orders(orders.clone())?
         .normalize_currency(&mut scraper, args.currency, args.date)?
         .by_ticker()?;
 
@@ -191,7 +191,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         sheet.update_sheets(&profit)?;
         println!("Uploading dividends...");
         sheet.update_sheets(&dividends)?;
-        let dividends = Dividends::from_orders(orders.clone())
+        let dividends = Dividends::try_from_orders(orders.clone())?
             .normalize_currency(&mut scraper, args.currency, args.date)?
             .collect()?;
         sheet.update_sheets(&dividends)?;

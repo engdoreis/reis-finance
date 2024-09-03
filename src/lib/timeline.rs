@@ -46,10 +46,13 @@ impl Timeline {
                     .or(col(Column::Date.as_str()).lt_eq(lit(current_date))),
             );
 
-            let dividends = Dividends::from_orders(orders.clone())
-                .normalize_currency(scraper, self.currency, Some(date))?
-                .by_ticker()?;
-            let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
+            let dividends = if let Ok(dividends) = Dividends::try_from_orders(orders.clone()) {
+                dividends
+                    .normalize_currency(scraper, self.currency, Some(date))?
+                    .by_ticker()?
+            } else {
+                DataFrame::default()
+            };
 
             let portfolio = Portfolio::from_orders(orders.clone(), Some(current_date))
                 .with_quotes(&scraped_data.quotes)?
