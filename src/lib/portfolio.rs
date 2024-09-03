@@ -3,7 +3,7 @@ use crate::perpetual_inventory::AverageCost;
 use crate::schema;
 use crate::scraper::IScraper;
 use crate::utils;
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use polars::lazy::dsl::dtype_col;
 use polars::prelude::*;
 
@@ -15,7 +15,10 @@ pub struct Portfolio {
 }
 
 impl Portfolio {
-    pub fn from_orders(orders: impl IntoLazy, present_date: Option<chrono::NaiveDate>) -> Self {
+    pub fn try_from_orders(
+        orders: impl IntoLazy,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Result<Self> {
         let raw_input: LazyFrame = orders.lazy();
         let result = raw_input
             .clone()
@@ -40,12 +43,17 @@ impl Portfolio {
                 SortMultipleOptions::default(),
             );
 
-        Portfolio {
+        ensure!(
+            result.clone().collect().unwrap().shape().0 > 0,
+            "Orders mut contain Buy operations!"
+        );
+
+        Ok(Portfolio {
             working_frame: result,
             raw_input,
             uninvested_cash: None,
             present_date: present_date.unwrap_or(chrono::Local::now().date_naive()),
-        }
+        })
     }
 
     pub fn with_quotes(mut self, quotes: &DataFrame) -> Result<Self> {
@@ -282,7 +290,8 @@ mod unittest {
             .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .collect()
@@ -317,7 +326,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -355,7 +365,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -401,7 +412,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -441,7 +453,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -489,7 +502,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -529,7 +543,6 @@ mod unittest {
 
     #[test]
     fn portfolio_empty_dividends() {
-
         let orders = utils::test::generate_mocking_orders();
         let dividends = DataFrame::default();
 

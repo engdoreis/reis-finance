@@ -140,7 +140,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         .unwrap();
 
     println!("Computing portfolio...");
-    let portfolio = Portfolio::from_orders(orders.clone(), args.date)
+    let portfolio = Portfolio::try_from_orders(orders.clone(), args.date)?
         .with_quotes(&scraped_data.quotes)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())

@@ -3,7 +3,7 @@ use crate::perpetual_inventory::AverageCost;
 use crate::schema::{Column, Currency};
 use crate::scraper::IScraper;
 use crate::utils;
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use polars::prelude::*;
 
 pub struct Profit {
@@ -40,8 +40,12 @@ impl Profit {
                 col(Column::Profit.into()),
             ]);
 
-        let data = data.collect()?.agg_chunks().lazy();
-        Ok(Profit { data })
+        let data = data.collect()?.agg_chunks();
+        ensure!(
+            data.shape().0 > 0,
+            "Profit: Orders must contain selling operations"
+        );
+        Ok(Profit { data: data.lazy() })
     }
 
     pub fn normalize_currency(

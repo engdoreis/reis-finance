@@ -35,30 +35,44 @@ impl Summary {
         })
     }
 
-    pub fn with_liquidated_profit(&mut self, profit: impl IntoLazy) -> Result<&mut Self> {
-        self.data = polars::functions::concat_df_horizontal(&[
-            self.data.clone().collect()?,
-            profit
-                .lazy()
-                .select([col(Column::Profit.into())
-                    .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
-                    .sum()
-                    .alias(Column::LiquidatedProfit.into())])
-                .collect()?,
-        ])?
-        .lazy();
+    pub fn with_liquidated_profit(&mut self, profit: DataFrame) -> Result<&mut Self> {
+        // Concat profit if it is not empty, otherwise create a profit column with zeros.
+        self.data = if profit.shape().0 > 0 {
+            polars::functions::concat_df_horizontal(&[
+                self.data.clone().collect()?,
+                profit
+                    .lazy()
+                    .select([col(Column::Profit.into())
+                        .filter(col(Column::Ticker.into()).neq(lit(schema::Type::Cash.as_str())))
+                        .sum()
+                        .alias(Column::LiquidatedProfit.into())])
+                    .collect()?,
+            ])?
+            .lazy()
+        } else {
+            self.data
+                .clone()
+                .with_column(lit(0.0).alias(schema::Column::LiquidatedProfit.as_str()))
+        };
         Ok(self)
     }
 
-    pub fn with_dividends(&mut self, dividends: impl IntoLazy) -> Result<&mut Self> {
-        self.data = polars::functions::concat_df_horizontal(&[
-            self.data.clone().collect()?,
-            dividends
-                .lazy()
-                .select([col(Column::Dividends.into()).sum()])
-                .collect()?,
-        ])?
-        .lazy();
+    pub fn with_dividends(&mut self, dividends: DataFrame) -> Result<&mut Self> {
+        // Concat dividends if it is not empty, otherwise create a dividends column with zeros.
+        self.data = if dividends.shape().0 > 0 {
+            polars::functions::concat_df_horizontal(&[
+                self.data.clone().collect()?,
+                dividends
+                    .lazy()
+                    .select([col(Column::Dividends.into()).sum()])
+                    .collect()?,
+            ])?
+            .lazy()
+        } else {
+            self.data
+                .clone()
+                .with_column(lit(0.0).alias(schema::Column::Dividends.as_str()))
+        };
         Ok(self)
     }
 
