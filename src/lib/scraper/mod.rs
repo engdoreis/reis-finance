@@ -76,6 +76,12 @@ impl ScraperData {
         }
         Ok(self)
     }
+
+    pub fn debug(&self) {
+        println!("{:?}", self.quotes);
+        println!("{:?}", self.splits);
+        println!("{:?}", self.dividends);
+    }
 }
 
 #[derive(Debug, Clone)]
