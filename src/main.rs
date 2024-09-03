@@ -43,6 +43,10 @@ struct Args {
     #[arg(short, long, default_value = "false")]
     show: bool,
 
+    /// Whether to use the cache for prices.
+    #[arg(long, default_value = "false")]
+    cache: bool,
+
     /// Filter-out transactions after the date.
     #[arg(short, long, value_parser = chrono::NaiveDate::from_str)]
     date: Option<chrono::NaiveDate>,
@@ -77,11 +81,15 @@ fn main() -> Result<()> {
 }
 
 fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
-    let mut scraper = Yahoo::new();
-    let mut scraper = Cache::new(
-        scraper,
-        dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
-    );
+    let mut scraper = if args.cache {
+        either::Right(Cache::new(
+            Yahoo::new(),
+            dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
+        ))
+    } else {
+        either::Left(Yahoo::new())
+    };
+
     let mut df = LazyFrame::default();
     for lf in orders {
         df = concat([df, lf.lazy()], Default::default())?;
@@ -122,7 +130,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
 
     // TODO: This code is repeated in timeline.
     println!("Computing dividends...");
-    let dividends = Dividends::from_orders(orders.clone())
+    let dividends = Dividends::try_from_orders(orders.clone())?
         .normalize_currency(&mut scraper, args.currency, args.date)?
         .by_ticker()?;
 
@@ -132,7 +140,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         .unwrap();
 
     println!("Computing portfolio...");
-    let portfolio = Portfolio::from_orders(orders.clone(), args.date)
+    let portfolio = Portfolio::try_from_orders(orders.clone(), args.date)?
         .with_quotes(&scraped_data.quotes)?
         .with_average_price()?
         .with_uninvested_cash(cash.clone())
@@ -183,7 +191,7 @@ fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
         sheet.update_sheets(&profit)?;
         println!("Uploading dividends...");
         sheet.update_sheets(&dividends)?;
-        let dividends = Dividends::from_orders(orders.clone())
+        let dividends = Dividends::try_from_orders(orders.clone())?
             .normalize_currency(&mut scraper, args.currency, args.date)?
             .collect()?;
         sheet.update_sheets(&dividends)?;

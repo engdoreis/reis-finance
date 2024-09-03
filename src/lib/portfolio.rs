@@ -3,7 +3,7 @@ use crate::perpetual_inventory::AverageCost;
 use crate::schema;
 use crate::scraper::IScraper;
 use crate::utils;
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use polars::lazy::dsl::dtype_col;
 use polars::prelude::*;
 
@@ -15,7 +15,10 @@ pub struct Portfolio {
 }
 
 impl Portfolio {
-    pub fn from_orders(orders: impl IntoLazy, present_date: Option<chrono::NaiveDate>) -> Self {
+    pub fn try_from_orders(
+        orders: impl IntoLazy,
+        present_date: Option<chrono::NaiveDate>,
+    ) -> Result<Self> {
         let raw_input: LazyFrame = orders.lazy();
         let result = raw_input
             .clone()
@@ -40,12 +43,17 @@ impl Portfolio {
                 SortMultipleOptions::default(),
             );
 
-        Portfolio {
+        ensure!(
+            result.clone().collect().unwrap().shape().0 > 0,
+            "Orders mut contain Buy operations!"
+        );
+
+        Ok(Portfolio {
             working_frame: result,
             raw_input,
             uninvested_cash: None,
             present_date: present_date.unwrap_or(chrono::Local::now().date_naive()),
-        }
+        })
     }
 
     pub fn with_quotes(mut self, quotes: &DataFrame) -> Result<Self> {
@@ -129,15 +137,19 @@ impl Portfolio {
     }
 
     pub fn with_dividends(mut self, dividends: DataFrame) -> Self {
-        self.working_frame = self
-            .working_frame
-            .join(
-                dividends.lazy(),
-                [col(schema::Column::Ticker.into())],
-                [col(schema::Column::Ticker.into())],
-                JoinArgs::new(JoinType::Left),
-            )
-            .fill_null(0f64);
+        self.working_frame = if dividends.shape().0 > 0 {
+            self.working_frame
+                .join(
+                    dividends.lazy(),
+                    [col(schema::Column::Ticker.into())],
+                    [col(schema::Column::Ticker.into())],
+                    JoinArgs::new(JoinType::Left),
+                )
+                .fill_null(0f64)
+        } else {
+            self.working_frame
+                .with_column(lit(0.0).alias(schema::Column::Dividends.as_str()))
+        };
         self
     }
 
@@ -278,7 +290,8 @@ mod unittest {
             .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .collect()
@@ -313,7 +326,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -351,7 +365,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -397,7 +412,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -437,7 +453,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -485,7 +502,8 @@ mod unittest {
             .load_blocking(SearchPeriod::new(None, None, None))
             .unwrap();
 
-        let result = Portfolio::from_orders(orders, None)
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
             .with_quotes(&data.quotes)
             .unwrap()
             .with_average_price()
@@ -516,6 +534,56 @@ mod unittest {
             Column::PaperProfitRate.into() => &[6.039, -51.1167],
             Column::Profit.into() => &[87.984,-352.725],
             Column::ProfitRate.into() => &[6.7994, -50.9075],
+        )
+        .unwrap();
+
+        std::env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn portfolio_empty_dividends() {
+        let orders = utils::test::generate_mocking_orders();
+        let dividends = DataFrame::default();
+
+        let mut scraper = utils::test::mock::Scraper::new();
+        let data = scraper
+            .with_ticker(&["GOOGL".to_owned(), "APPL".to_owned()], None)
+            .load_blocking(SearchPeriod::new(None, None, None))
+            .unwrap();
+
+        let result = Portfolio::try_from_orders(orders, None)
+            .unwrap()
+            .with_quotes(&data.quotes)
+            .unwrap()
+            .with_average_price()
+            .unwrap()
+            .paper_profit()
+            .with_dividends(dividends)
+            .with_profit()
+            .collect()
+            .unwrap()
+            .lazy()
+            .select([
+                col(Column::Ticker.into()),
+                dtype_col(&DataType::Float64).round(4),
+            ])
+            .sort([Column::Ticker.as_str()], Default::default())
+            .collect()
+            .unwrap();
+
+        let expected = df! (
+            Column::Ticker.into() => &["APPL", "GOOGL"],
+            Column::Amount.into() => &[1293.996, 692.875],
+            Column::AccruedQty.into() => &[13.20, 10.0],
+            Column::MarketPrice.into() => &[103.95, 33.87],
+            Column::AveragePrice.into() => &[98.03, 69.2875],
+            Column::MarketValue.into() => &[1372.14, 338.7],
+            Column::PaperProfit.into() => &[78.144, -354.175],
+            Column::PaperProfitRate.into() => &[6.039, -51.1167],
+            Column::Dividends.into() => &[0.00, 0.00],
+            Column::Profit.into() => &[78.144,-354.175],
+            Column::ProfitRate.into() => &[6.039, -51.1167],
         )
         .unwrap();
 

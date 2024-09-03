@@ -55,7 +55,7 @@ impl JsonOAuth {
     }
 }
 
-const TOKEN_PATH: &str = "./access_token.json";
+const TOKEN_FILE: &str = ".config/reis-finance/access_token.json";
 
 pub struct GoogleSheet {
     config: GoogleSheetConfig,
@@ -79,7 +79,9 @@ impl GoogleSheet {
         let credentials = JsonOAuth::from_file(&config.credentials_file);
 
         loop {
-            if let Ok(file_content) = std::fs::read_to_string(TOKEN_PATH) {
+            if let Ok(file_content) =
+                std::fs::read_to_string(dirs::home_dir().unwrap().join(TOKEN_FILE))
+            {
                 if let Ok(token) = serde_json::from_str::<sheets::AccessToken>(&file_content) {
                     let client = Client::new(
                         credentials.installed.client_id.clone(),
@@ -89,8 +91,13 @@ impl GoogleSheet {
                         token.refresh_token,
                     );
 
-                    tokio_test::block_on(client.refresh_access_token()).unwrap();
-                    return Ok(client);
+                    if let Ok(token) = tokio_test::block_on(client.refresh_access_token()) {
+                        println!("refreshed token={token:?}");
+                        if Some(false) == tokio_test::block_on(client.is_expired()) {
+                            return Ok(client);
+                        }
+                    }
+                    println!("Can't refresh access token")
                 }
             }
 
@@ -132,7 +139,7 @@ impl GoogleSheet {
                 tokio_test::block_on(client.get_access_token(&caps["code"], &caps["state"]))
                     .unwrap();
             let contents = serde_json::to_string_pretty(&access_token)?;
-            std::fs::write(TOKEN_PATH, &contents)?;
+            std::fs::write(dirs::home_dir().unwrap().join(TOKEN_FILE), &contents)?;
         }
     }
 

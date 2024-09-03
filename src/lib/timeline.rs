@@ -46,43 +46,58 @@ impl Timeline {
                     .or(col(Column::Date.as_str()).lt_eq(lit(current_date))),
             );
 
-            let dividends = Dividends::from_orders(orders.clone())
-                .normalize_currency(scraper, self.currency, Some(date))?
-                .by_ticker()?;
+            let dividends = if let Ok(dividends) = Dividends::try_from_orders(orders.clone()) {
+                dividends
+                    .normalize_currency(scraper, self.currency, Some(date))?
+                    .by_ticker()?
+            } else {
+                DataFrame::default()
+            };
+
             let cash = uninvested::Cash::from_orders(orders.clone()).collect()?;
+            if let Ok(portfolio) = Portfolio::try_from_orders(orders.clone(), Some(current_date)) {
+                let portfolio = portfolio
+                    .with_quotes(&scraped_data.quotes)?
+                    .with_average_price()?
+                    .with_uninvested_cash(cash.clone())
+                    .normalize_currency(scraper, self.currency)?
+                    .paper_profit()
+                    .with_dividends(dividends.clone())
+                    .with_profit()
+                    .with_allocation()
+                    .collect()?;
 
-            let portfolio = Portfolio::from_orders(orders.clone(), Some(current_date))
-                .with_quotes(&scraped_data.quotes)?
-                .with_average_price()?
-                .with_uninvested_cash(cash.clone())
-                .normalize_currency(scraper, self.currency)?
-                .paper_profit()
-                .with_dividends(dividends.clone())
-                .with_profit()
-                .with_allocation()
-                .collect()?;
+                let profit = if let Ok(profit) = liquidated::Profit::from_orders(orders.clone()) {
+                    profit
+                        .normalize_currency(scraper, self.currency, Some(date))?
+                        .collect()?
+                } else {
+                    DataFrame::default()
+                };
 
-            let profit = liquidated::Profit::from_orders(orders.clone())?
-                .normalize_currency(scraper, self.currency, Some(date))?
-                .collect()?;
+                let summary = Summary::from_portfolio(portfolio)?
+                    .with_dividends(dividends)?
+                    .with_capital_invested(
+                        orders.clone(),
+                        self.currency,
+                        scraper,
+                        Some(current_date),
+                    )?
+                    .with_liquidated_profit(profit)?
+                    .finish();
 
-            let summary = Summary::from_portfolio(portfolio)?
-                .with_dividends(dividends)?
-                .with_capital_invested(orders.clone(), self.currency, scraper, Some(current_date))?
-                .with_liquidated_profit(profit)?
-                .finish();
-
-            result = concat(
-                [
-                    result,
-                    summary.with_column(
-                        lit(current_date)
-                            .cast(DataType::Date)
-                            .alias(schema::Column::Date.as_str()),
-                    ),
-                ],
-                Default::default(),
-            )?;
+                result = concat(
+                    [
+                        result,
+                        summary.with_column(
+                            lit(current_date)
+                                .cast(DataType::Date)
+                                .alias(schema::Column::Date.as_str()),
+                        ),
+                    ],
+                    Default::default(),
+                )?;
+            }
             if current_date == date {
                 break;
             }

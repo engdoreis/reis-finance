@@ -1,7 +1,7 @@
 use crate::schema;
 use crate::scraper::{self, IScraper};
 use crate::utils;
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use polars::prelude::*;
 use IntoLazy;
 
@@ -16,7 +16,18 @@ pub fn normalize(
     let table = table.lazy();
 
     let data_frame = table.clone().collect()?;
-    let currencies = utils::polars::column_str(&data_frame, by_col)?;
+    ensure!(
+        data_frame.shape().0 > 0,
+        "Argument table must not be empty!"
+    );
+
+    let mut currencies = utils::polars::column_str(&data_frame, by_col)?;
+    currencies.sort();
+    currencies.dedup();
+
+    if currencies.len() == 1 && currencies[0] == currency.as_str() {
+        return Ok(table);
+    }
 
     for ticker_currency in currencies {
         let ticker_currency = ticker_currency
@@ -62,6 +73,19 @@ pub fn normalize(
             col(EXCHANGE_RATE),
         ]);
 
+    // When converting from equality i.e USD -> USD
+    let exchange_rate = concat(
+        [
+            exchange_rate,
+            df!(
+                schema::Column::Ticker.into() => &[currency.as_str()],
+                EXCHANGE_RATE => &[1.0],
+            )?
+            .lazy(),
+        ],
+        Default::default(),
+    )?;
+
     let convert: Vec<_> = columns
         .iter()
         .map(|column| column.clone() * col(EXCHANGE_RATE))
@@ -74,6 +98,9 @@ pub fn normalize(
             [col(schema::Column::Ticker.into())],
             JoinArgs::new(JoinType::Left),
         )
+        .collect()
+        .unwrap()
+        .lazy()
         .with_column(col(EXCHANGE_RATE).fill_null(lit(1))) // If not available 1.
         .with_columns(convert)
         .with_column(lit(currency.as_str()).alias(by_col))
@@ -186,5 +213,45 @@ mod unittest {
         .unwrap();
 
         assert_eq!(expected, normalized);
+    }
+
+    #[test]
+    fn normilize_to_same_currency() {
+        let actions: &[&str] = &[
+            Deposit,
+            Buy,
+            Buy,
+            Sell,
+            Dividend,
+            Withdraw,
+            Action::Tax,
+            Fee,
+        ]
+        .map(|x| x.into());
+
+        let orders = df! (
+            Action.into() => actions,
+            Ticker.into() => &["APPL", "GOOGL", "GOOGL", "GOOGL", "GOOGL", "CASH", "APPL", "CASH"],
+            Amount.into() => &[10335.1, 4397.45, 2094.56, 3564.86, 76.87, 150.00, 3.98, 1.56],
+            Currency.into() => &[USD, USD, USD, USD, USD, USD, USD, USD].map(|x| x.as_str()),
+            Country.into() => &[Usa, Usa, Usa, Usa, Usa, Usa, Usa, Usa].map(|x| x.as_str()),
+        )
+        .unwrap();
+
+        let mut scraper = utils::test::mock::Scraper::new();
+        let normalized = normalize(
+            orders.clone(),
+            schema::Column::Currency.as_str(),
+            &[col(Amount.as_str())],
+            USD,
+            &mut scraper,
+            None,
+        )
+        .unwrap()
+        .with_column(dtype_col(&DataType::Float64).round(2))
+        .collect()
+        .unwrap();
+
+        assert_eq!(orders, normalized);
     }
 }

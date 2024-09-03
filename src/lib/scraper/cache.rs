@@ -229,6 +229,63 @@ where
     }
 }
 
+impl<L, R> IScraper for either::Either<L, R>
+where
+    R: IScraper + std::marker::Send,
+    L: IScraper + std::marker::Send,
+{
+    fn with_ticker(
+        &mut self,
+        tickers: &[String],
+        countries: Option<&[schema::Country]>,
+    ) -> &mut Self {
+        match self {
+            either::Left(left) => {
+                left.with_ticker(tickers, countries);
+            }
+            either::Right(right) => {
+                right.with_ticker(tickers, countries);
+            }
+        };
+        self
+    }
+
+    fn with_currency(&mut self, from: Currency, to: Currency) -> &mut Self {
+        match self {
+            either::Left(left) => {
+                left.with_currency(from, to);
+            }
+            either::Right(right) => {
+                right.with_currency(from, to);
+            }
+        };
+        self
+    }
+
+    fn load_blocking(&mut self, search_interval: SearchPeriod) -> Result<ScraperData> {
+        tokio_test::block_on(self.load(search_interval))
+    }
+
+    fn reset(&mut self) -> &mut Self {
+        match self {
+            either::Left(left) => {
+                left.reset();
+            }
+            either::Right(right) => {
+                right.reset();
+            }
+        };
+        self
+    }
+
+    async fn load(&mut self, period: SearchPeriod) -> Result<ScraperData> {
+        match self {
+            either::Left(left) => left.load(period).await,
+            either::Right(right) => right.load(period).await,
+        }
+    }
+}
+
 #[cfg(test)]
 mod unittest {
     use super::*;

@@ -2,7 +2,7 @@ use crate::currency;
 use crate::schema::{Action, Column, Currency};
 use crate::scraper::IScraper;
 use crate::utils;
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use polars::prelude::*;
 
 pub struct Dividends {
@@ -10,18 +10,21 @@ pub struct Dividends {
 }
 
 impl Dividends {
-    pub fn from_orders(orders: impl IntoLazy) -> Self {
+    pub fn try_from_orders(orders: impl IntoLazy) -> Result<Self> {
         let orders = orders.lazy();
-        Dividends {
-            data: orders
-                .filter(
-                    col(Column::Action.into())
-                        .eq(lit(Action::Dividend.as_str()))
-                        .or(col(Column::Action.into()).eq(lit(Action::Tax.as_str())))
-                        .or(col(Column::Action.into()).eq(lit(Action::Interest.as_str()))),
-                )
-                .with_column(utils::polars::compute::negative_amount_on_tax()),
-        }
+        let data = orders
+            .filter(
+                col(Column::Action.into())
+                    .eq(lit(Action::Dividend.as_str()))
+                    .or(col(Column::Action.into()).eq(lit(Action::Tax.as_str())))
+                    .or(col(Column::Action.into()).eq(lit(Action::Interest.as_str()))),
+            )
+            .with_column(utils::polars::compute::negative_amount_on_tax());
+        ensure!(
+            data.clone().collect().unwrap().shape().0 > 0,
+            "Orders must contain Dividends or Interests!"
+        );
+        Ok(Dividends { data })
     }
 
     pub fn normalize_currency(
@@ -90,7 +93,8 @@ mod unittest {
     fn dividends_by_ticker_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::from_orders(orders)
+        let result = Dividends::try_from_orders(orders)
+            .unwrap()
             .by_ticker()
             .unwrap()
             .lazy()
@@ -116,7 +120,8 @@ mod unittest {
     fn dividends_pivot_success() {
         let orders = utils::test::generate_mocking_orders();
 
-        let result = Dividends::from_orders(orders)
+        let result = Dividends::try_from_orders(orders)
+            .unwrap()
             .pivot()
             .unwrap()
             .lazy()
