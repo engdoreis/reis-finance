@@ -40,4 +40,6 @@ pub trait IBroker {
             SortMultipleOptions::new().with_order_descending(false),
         )
     }
+
+    fn load_from_api(&self, path: Option<&Path>) -> Result<DataFrame>;
 }

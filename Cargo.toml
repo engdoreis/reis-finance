@@ -2,6 +2,7 @@
 name = "reis-finance"
 version = "0.1.1"
 edition = "2021"
+resolver = "2"
 
 [lib]
 name = "reis_finance_lib"
@@ -28,6 +29,7 @@ itertools = "0.12.1"
 polars = {version = "0.39.2", features = ["lazy", "strings", "cum_agg", "dtype-struct", "round_series", "json", "regex", "pivot", "is_in"]}
 polars-ops = "0.39.2"
 regex = "1.10.4"
+reqwest = { version = "0.12.7", features = ["blocking"] }
 serde = "1.0.197"
 serde_json = "1.0.114"
 sheets = "0.7.0"
@@ -36,4 +38,5 @@ temp-file = "0.1.8"
 time = {version="0.3.31", features = ["parsing", "formatting"]}
 tokio = "1.37.0"
 tokio-test = "0.4.3"
+trading212 = "0.2.10"
 yahoo_finance_api = "2.2.1"

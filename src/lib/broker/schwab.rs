@@ -129,6 +129,10 @@ impl IBroker for Schwab {
 
         Ok(Self::sanitize(df).collect()?)
     }
+
+    fn load_from_api(&self, _path: Option<&Path>) -> Result<DataFrame> {
+        todo!("Look for an api");
+    }
 }
 
 #[cfg(test)]

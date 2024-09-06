@@ -5,22 +5,40 @@ use crate::utils;
 use anyhow::Context;
 use anyhow::Result;
 use polars::prelude::*;
-use std::path::Path;
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
+
+use trading212::models::*;
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ApiConfig {
+    pub token: String,
+    #[serde(deserialize_with = "time::serde::iso8601::deserialize")]
+    pub starting_date: time::OffsetDateTime,
+}
+
+impl ApiConfig {
+    pub fn from_file(file: &PathBuf) -> Self {
+        let file_content =
+            std::fs::read_to_string(file).expect("Failed to read Trading212 config file");
+        serde_json::from_str(&file_content).expect("Failed to deserialize JSON file")
+    }
+}
+
 pub struct Trading212 {
     currency: Currency,
+    config: Option<ApiConfig>,
 }
 
 impl Default for Trading212 {
     fn default() -> Self {
-        Trading212 {
-            currency: Currency::GBP,
-        }
+        Self::new(Currency::GBP, None)
     }
 }
 
 impl Trading212 {
-    pub fn new(currency: Currency) -> Self {
-        Trading212 { currency }
+    pub fn new(currency: Currency, config: Option<ApiConfig>) -> Self {
+        Self { currency, config }
     }
 
     fn map_action(s: &str) -> Action {
@@ -34,6 +52,39 @@ impl Trading212 {
             ["Interest", _] => Action::Interest,
             _ => panic!("Unknown {s}"),
         }
+    }
+
+    fn load_from_dir_and_get_latest_date(
+        &self,
+        config: &ApiConfig,
+        dir: Option<&Path>,
+    ) -> Result<(DataFrame, time::OffsetDateTime)> {
+        Ok(if let Some(dir) = dir {
+            let df = self.load_from_dir(dir).unwrap_or_default();
+            let date = utils::polars::latest_date(&df);
+            let datetime = chrono::NaiveDateTime::from(date - chrono::Duration::days(1));
+            let datetime =
+                time::OffsetDateTime::from_unix_timestamp(datetime.and_utc().timestamp())?;
+            (df, datetime)
+        } else {
+            (DataFrame::default(), config.starting_date)
+        })
+    }
+}
+
+enum DefaultVal {
+    String(&'static str),
+    Number(f32),
+}
+
+struct OptCol {
+    name: &'static str,
+    default: DefaultVal,
+}
+
+impl OptCol {
+    pub fn new(name: &'static str, default: DefaultVal) -> Self {
+        Self { name, default }
     }
 }
 
@@ -55,13 +106,21 @@ impl IBroker for Trading212 {
         let columns = df.get_column_names();
         let mut lazy_df = df.clone().lazy();
         let optional_columns = [
-            "Stamp duty reserve tax",
-            "Withholding tax",
-            "Currency conversion fee",
+            OptCol::new("Stamp duty reserve tax", DefaultVal::Number(0.0)),
+            OptCol::new("Withholding tax", DefaultVal::Number(0.0)),
+            OptCol::new("Currency conversion fee", DefaultVal::Number(0.0)),
+            OptCol::new("No. of shares", DefaultVal::Number(0.0)),
+            OptCol::new("Price / share", DefaultVal::Number(0.0)),
+            OptCol::new("Ticker", DefaultVal::String("CASH")),
+            OptCol::new("ISIN", DefaultVal::String("GB")),
         ];
+
         for opt_col in optional_columns {
-            if !columns.contains(&opt_col) {
-                lazy_df = lazy_df.with_column(lit(0).alias(opt_col));
+            if !columns.contains(&opt_col.name) {
+                lazy_df = match opt_col.default {
+                    DefaultVal::Number(n) => lazy_df.with_column(lit(n).alias(opt_col.name)),
+                    DefaultVal::String(s) => lazy_df.with_column(lit(s).alias(opt_col.name)),
+                }
             }
         }
 
@@ -116,6 +175,75 @@ impl IBroker for Trading212 {
             );
 
         Ok(Self::sanitize(out).collect()?)
+    }
+
+    fn load_from_api(&self, path: Option<&Path>) -> Result<DataFrame> {
+        let config = self
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Token not loaded with contructor"))?;
+
+        let (df, latest_date) = self.load_from_dir_and_get_latest_date(config, path)?;
+
+        let client = trading212::Client::new(&config.token, trading212::Target::Live)?;
+        let mut request = trading212::models::public_report_request::PublicReportRequest::new();
+        request.data_included.include_dividends = true;
+        request.data_included.include_interest = true;
+        request.data_included.include_orders = true;
+        request.data_included.include_transactions = true;
+        request.time_from = latest_date;
+        request.time_to = time::OffsetDateTime::now_utc();
+
+        println!("\tRequesting to generate a csv");
+        let report_id = tokio_test::block_on(client.export_csv(request.clone()))?.report_id;
+        if report_id.is_none() {
+            println!("No report to donwload");
+            return Ok(df);
+        }
+
+        let url = loop {
+            println!("\tWainting the csv generation ");
+            std::thread::sleep(std::time::Duration::from_millis(15000));
+            print!("\tChecking status...");
+            let response = tokio_test::block_on(client.export_list())?;
+            let response = response.iter().find(|x| x.report_id == report_id).unwrap();
+            println!("\tReturned {:?}", response.status);
+            match response.status {
+                Some(report_response::Status::Finished) => {
+                    break response.download_link.clone().unwrap();
+                }
+                Some(report_response::Status::Canceled)
+                | Some(report_response::Status::Failed)
+                | None => {
+                    anyhow::bail!("Failed to donwload")
+                }
+                _ => {
+                    continue;
+                }
+            };
+        };
+
+        println!("\tDonwloading the csv");
+        let response = reqwest::blocking::get(url).expect("Failed to fetch URL");
+        let csv_file = if let Some(path) = path {
+            let csv_file = path.join(format!(
+                "auto_download_{}_to_{}.csv",
+                request.time_from.date(),
+                request.time_to.date()
+            ));
+            let mut file = std::fs::File::create(csv_file.clone())?;
+            file.write_all(response.text().unwrap().as_bytes())?;
+            csv_file
+        } else {
+            temp_file::with_contents(response.text().unwrap().as_bytes())
+                .path()
+                .to_path_buf()
+        };
+
+        let new = self.load_from_csv(&csv_file)?;
+        Ok(concat([df.lazy(), new.lazy()], Default::default())?
+            .unique(None, UniqueKeepStrategy::First)
+            .collect()?)
     }
 }
 
