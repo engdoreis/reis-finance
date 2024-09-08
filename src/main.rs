@@ -6,6 +6,7 @@ use polars::prelude::*;
 
 use reis_finance_lib::broker::{self, IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
+use reis_finance_lib::global_conf;
 use reis_finance_lib::googlesheet::GoogleSheet;
 use reis_finance_lib::liquidated;
 use reis_finance_lib::portfolio::Portfolio;
@@ -75,9 +76,7 @@ fn main() -> Result<()> {
         println!("Loading trading 212 orders...");
 
         let config = broker::trading212::ApiConfig::from_file(
-            &dirs::home_dir()
-                .unwrap()
-                .join(".config/reis-finance/trading212_config.json"),
+            &global_conf::get_config_dir().join("trading212_config.json"),
         );
 
         let broker = Trading212::new(schema::Currency::GBP, Some(config));
@@ -98,10 +97,7 @@ fn main() -> Result<()> {
 
 fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
     let mut scraper = if args.cache {
-        either::Right(Cache::new(
-            Yahoo::new(),
-            dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
-        ))
+        either::Right(Cache::new(Yahoo::new(), global_conf::get_cache_dir()))
     } else {
         either::Left(Yahoo::new())
     };
