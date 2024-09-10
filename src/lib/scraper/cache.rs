@@ -44,9 +44,9 @@ where
         std::fs::create_dir_all(&cache_dir).expect("Can't create cache dir");
         Self {
             inner,
-            quotes_cache: cache_dir.join("quotes.json"),
-            splits_cache: cache_dir.join("splits.json"),
-            dividends_cache: cache_dir.join("dividends.json"),
+            quotes_cache: cache_dir.join("quotes.csv"),
+            splits_cache: cache_dir.join("splits.csv"),
+            dividends_cache: cache_dir.join("dividends.csv"),
             tickers: Vec::new(),
         }
     }
@@ -89,14 +89,14 @@ where
         Ok(true)
     }
 
-    pub async fn load_json(&mut self, file: PathBuf) -> Result<DataFrame> {
+    pub async fn load_csv(&mut self, file: PathBuf) -> Result<DataFrame> {
         let mut f = File::open(&file)
             .await
             .with_context(|| format!("Could not open file: {:?}", file))?;
         let mut content = Vec::new();
         f.read_to_end(&mut content).await?;
         let res = std::panic::catch_unwind(|| {
-            JsonReader::new(std::io::Cursor::new(content))
+            CsvReader::new(std::io::Cursor::new(content))
                 .finish()
                 .expect("Failed to Load json")
                 .lazy()
@@ -107,14 +107,13 @@ where
         res.map_err(|e| anyhow::anyhow!("Panic occurred: {:?}", e))
     }
 
-    pub async fn dump_json(&mut self, mut df: DataFrame, file: PathBuf) -> Result<()> {
+    pub async fn dump_csv(&mut self, mut df: DataFrame, file: PathBuf) -> Result<()> {
         if df.shape().0 > 0 {
             let mut f = File::create(&file)
                 .await
                 .with_context(|| format!("Could not open file: {:?}", file))?;
             let mut writer = Vec::new();
-            JsonWriter::new(&mut writer)
-                .with_json_format(JsonFormat::Json)
+            CsvWriter::new(&mut writer)
                 .finish(&mut df)?;
             f.write_all(&writer).await?;
         }
@@ -159,19 +158,19 @@ where
         let mut cached_data = ScraperData::default();
         loop {
             let quotes = self
-                .load_json(self.quotes_cache.clone())
+                .load_csv(self.quotes_cache.clone())
                 .await
                 .unwrap_or_default();
 
             if quotes.shape().0 > 0 {
                 cached_data.concat_quotes(quotes)?;
                 let splits = self
-                    .load_json(self.splits_cache.clone())
+                    .load_csv(self.splits_cache.clone())
                     .await
                     .unwrap_or_default();
                 cached_data.concat_splits(splits)?;
                 let dividends = self
-                    .load_json(self.dividends_cache.clone())
+                    .load_csv(self.dividends_cache.clone())
                     .await
                     .unwrap_or_default();
                 cached_data.concat_dividends(dividends)?;
@@ -193,11 +192,11 @@ where
                 .concat_dividends(data.dividends)?
                 .concat_splits(data.splits)?;
 
-            self.dump_json(cached_data.quotes.clone(), self.quotes_cache.clone())
+            self.dump_csv(cached_data.quotes.clone(), self.quotes_cache.clone())
                 .await?;
-            self.dump_json(cached_data.splits.clone(), self.splits_cache.clone())
+            self.dump_csv(cached_data.splits.clone(), self.splits_cache.clone())
                 .await?;
-            self.dump_json(cached_data.dividends.clone(), self.dividends_cache.clone())
+            self.dump_csv(cached_data.dividends.clone(), self.dividends_cache.clone())
                 .await?;
 
             break;
