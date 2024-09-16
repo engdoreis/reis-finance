@@ -183,8 +183,11 @@ impl IScraper for Yahoo {
                     )?,
                     &format!("{}d", period.interval_days),
                 )
-                .await
-                .with_context(|| format!("Failed to load {:?} with {:?}", &ticker, period))?;
+                .await;
+            let Ok(response) = response else {
+                println!("Failed to load {:?} with {:?}", &ticker, period);
+                continue;
+            };
 
             data.concat_quotes(self.quotes(&response, ticker, country.to_owned(), multiplier)?)?
                 .concat_splits(self.splits(&response, ticker)?)?

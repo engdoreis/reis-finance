@@ -16,24 +16,7 @@ pub struct Cache<T> {
     splits_cache: PathBuf,
     dividends_cache: PathBuf,
     tickers: Vec<String>,
-}
-
-pub fn adjust_weekday_forward(date: &mut chrono::NaiveDate) {
-    let days = match date.weekday() {
-        chrono::Weekday::Sat => 2,
-        chrono::Weekday::Sun => 1,
-        _ => return,
-    };
-    *date += chrono::Duration::days(days);
-}
-
-pub fn adjust_weekday_backward(date: &mut chrono::NaiveDate) {
-    let days = match date.weekday() {
-        chrono::Weekday::Sat => 1,
-        chrono::Weekday::Sun => 2,
-        _ => return,
-    };
-    *date -= chrono::Duration::days(days);
+    cached_tickers: Vec<String>,
 }
 
 impl<T> Cache<T>
@@ -48,46 +31,17 @@ where
             splits_cache: cache_dir.join("splits.csv"),
             dividends_cache: cache_dir.join("dividends.csv"),
             tickers: Vec::new(),
+            cached_tickers: Vec::new(),
         }
     }
 
-    fn is_cache_updated(&self, df: &DataFrame, period: &SearchPeriod) -> Result<bool> {
-        let mut end = period.end;
-        adjust_weekday_backward(&mut end);
-        let mut start = period.start;
-        adjust_weekday_backward(&mut start);
-
-        let filtered = df
-            .clone()
-            .lazy()
-            .select([col(Column::Ticker.as_str()), col(Column::Date.as_str())])
-            .filter(col(Column::Date.as_str()).lt_eq(lit(end)))
-            .filter(col(Column::Date.as_str()).gt_eq(lit(start)))
-            .sort([Column::Date.as_str()], Default::default())
-            .group_by([col(Column::Ticker.as_str())])
-            .agg([col(Column::Date.as_str()).first()])
-            .collect()
-            .context("Failed to generate unique list of tickers.")?;
-
-        let mut cached_tickers: Vec<_> =
-            utils::polars::column_str(&filtered, Column::Ticker.as_str())
-                .context("Failed to collect list of tickers")?
-                .into_iter()
-                .map(str::to_owned)
-                .collect();
-
-        cached_tickers.sort();
-        cached_tickers.dedup();
-
-        let tickers = self.tickers.clone();
-        for ticker in tickers {
-            if !cached_tickers.contains(&ticker) {
-                return Ok(false);
-            }
-        }
-
-        Ok(true)
+    fn cache_valid(&self) -> bool {
+        self
+            .tickers
+            .iter()
+            .all(|item| self.cached_tickers.contains(item))
     }
+
 
     pub async fn load_csv(&mut self, file: PathBuf) -> Result<DataFrame> {
         let mut f = File::open(&file)
@@ -113,8 +67,7 @@ where
                 .await
                 .with_context(|| format!("Could not open file: {:?}", file))?;
             let mut writer = Vec::new();
-            CsvWriter::new(&mut writer)
-                .finish(&mut df)?;
+            CsvWriter::new(&mut writer).finish(&mut df)?;
             f.write_all(&writer).await?;
         }
         Ok(())
@@ -150,40 +103,44 @@ where
 
     fn reset(&mut self) -> &mut Self {
         self.inner.reset();
+        self.cached_tickers.extend(self.tickers.clone());
+        self.cached_tickers.sort();
+        self.cached_tickers.dedup();
         self.tickers.clear();
         self
     }
 
     async fn load(&mut self, period: SearchPeriod) -> Result<ScraperData> {
         let mut cached_data = ScraperData::default();
-        loop {
-            let quotes = self
-                .load_csv(self.quotes_cache.clone())
+        let quotes = self
+            .load_csv(self.quotes_cache.clone())
+            .await
+            .unwrap_or_default();
+
+        let latest_update = if quotes.shape().0 > 0 {
+            let date = utils::polars::latest_date(&quotes);
+            cached_data.concat_quotes(quotes)?;
+            let splits = self
+                .load_csv(self.splits_cache.clone())
                 .await
                 .unwrap_or_default();
+            cached_data.concat_splits(splits)?;
+            let dividends = self
+                .load_csv(self.dividends_cache.clone())
+                .await
+                .unwrap_or_default();
+            cached_data.concat_dividends(dividends)?;
+            date - chrono::Duration::days(1)
+        } else {
+            period.start
+        };
 
-            if quotes.shape().0 > 0 {
-                cached_data.concat_quotes(quotes)?;
-                let splits = self
-                    .load_csv(self.splits_cache.clone())
-                    .await
-                    .unwrap_or_default();
-                cached_data.concat_splits(splits)?;
-                let dividends = self
-                    .load_csv(self.dividends_cache.clone())
-                    .await
-                    .unwrap_or_default();
-                cached_data.concat_dividends(dividends)?;
-
-                if self.is_cache_updated(&cached_data.quotes, &period)? {
-                    break;
-                }
-            }
-
-            println!("Updating cache {:?} ...", period);
+        if !self.cache_valid() {
+            let update_period = SearchPeriod::new(Some(latest_update),None, None);
+            println!("Updating cache {:?} {:?} ...", self.tickers, update_period);
             let data = self
                 .inner
-                .load(SearchPeriod::new(Some(period.start), None, Some(1)))
+                .load(update_period)
                 .await
                 .with_context(|| format!("Failed to load {:?}", &self.tickers))?;
 
@@ -198,13 +155,10 @@ where
                 .await?;
             self.dump_csv(cached_data.dividends.clone(), self.dividends_cache.clone())
                 .await?;
-
-            break;
         }
 
         // TODO: This code is repeated in `is_cache_updated`.
-        let mut start = period.start;
-        adjust_weekday_backward(&mut start);
+        let start = period.start;
         let filter = Series::new("filter", self.tickers.clone());
         cached_data.quotes = cached_data
             .quotes
@@ -223,6 +177,7 @@ where
                 .filter(col(Column::Date.as_str()).gt_eq(lit(start)))
                 .collect()?;
         }
+
         self.reset();
         Ok(cached_data)
     }
@@ -285,37 +240,3 @@ where
     }
 }
 
-#[cfg(test)]
-mod unittest {
-    use super::*;
-
-    #[test]
-    fn cache_adjust_weekday_forward() {
-        let mut date = "2024-04-28".parse().unwrap();
-        adjust_weekday_forward(&mut date);
-        assert_eq!(date, "2024-04-29".parse().unwrap());
-
-        let mut date = "2024-04-29".parse().unwrap();
-        adjust_weekday_forward(&mut date);
-        assert_eq!(date, "2024-04-29".parse().unwrap());
-
-        let mut date = "2024-04-27".parse().unwrap();
-        adjust_weekday_forward(&mut date);
-        assert_eq!(date, "2024-04-29".parse().unwrap());
-    }
-
-    #[test]
-    fn cache_adjust_weekday_backward() {
-        let mut date = "2024-04-28".parse().unwrap();
-        adjust_weekday_backward(&mut date);
-        assert_eq!(date, "2024-04-26".parse().unwrap());
-
-        let mut date = "2024-04-29".parse().unwrap();
-        adjust_weekday_backward(&mut date);
-        assert_eq!(date, "2024-04-29".parse().unwrap());
-
-        let mut date = "2024-04-27".parse().unwrap();
-        adjust_weekday_backward(&mut date);
-        assert_eq!(date, "2024-04-26".parse().unwrap());
-    }
-}
