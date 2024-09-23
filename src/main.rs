@@ -63,6 +63,10 @@ fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_MAX_ROWS", "30"); // maximum number of rows shown when formatting DataFrames.
     std::env::set_var("POLARS_FMT_STR_LEN", "50"); // maximum number of characters printed per string value.
 
+    let _logger = flexi_logger::Logger::try_with_str("info")?
+        .log_to_file(flexi_logger::FileSpec::default().directory(global_conf::get_log_dir()))
+        .start()?;
+
     let args: Args = Args::parse();
     let mut orders: Vec<DataFrame> = Vec::new();
 

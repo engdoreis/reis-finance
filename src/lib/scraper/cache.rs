@@ -2,7 +2,6 @@ use crate::schema::{Column, Currency};
 use crate::utils;
 use anyhow::{Context, Result};
 
-use chrono::Datelike;
 use polars::prelude::*;
 use std::path::PathBuf;
 
@@ -36,12 +35,10 @@ where
     }
 
     fn cache_valid(&self) -> bool {
-        self
-            .tickers
+        self.tickers
             .iter()
             .all(|item| self.cached_tickers.contains(item))
     }
-
 
     pub async fn load_csv(&mut self, file: PathBuf) -> Result<DataFrame> {
         let mut f = File::open(&file)
@@ -136,8 +133,8 @@ where
         };
 
         if !self.cache_valid() {
-            let update_period = SearchPeriod::new(Some(latest_update),None, None);
-            println!("Updating cache {:?} {:?} ...", self.tickers, update_period);
+            let update_period = SearchPeriod::new(Some(latest_update), None, None);
+            log::info!("Updating cache {:?} {:?} ...", self.tickers, update_period);
             let data = self
                 .inner
                 .load(update_period)

@@ -207,7 +207,7 @@ impl IBroker for Trading212 {
             print!("\tChecking status...");
             let response = tokio_test::block_on(client.export_list())?;
             let response = response.iter().find(|x| x.report_id == report_id).unwrap();
-            println!("\tReturned {:?}", response.status);
+            log::info!("\tReturned {:?}", response.status);
             match response.status {
                 Some(report_response::Status::Finished) => {
                     break response.download_link.clone().unwrap();
