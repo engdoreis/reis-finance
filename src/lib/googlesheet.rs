@@ -1,3 +1,4 @@
+use crate::global_conf;
 use anyhow::Result;
 use polars::prelude::*;
 use regex::Regex;
@@ -23,11 +24,7 @@ impl GoogleSheetConfig {
 
 impl std::default::Default for GoogleSheetConfig {
     fn default() -> Self {
-        Self::from_file(
-            &dirs::home_dir()
-                .unwrap()
-                .join(".config/reis-finance/google_config.json"),
-        )
+        Self::from_file(&global_conf::get_config_dir().join("google_config.json"))
     }
 }
 
@@ -55,7 +52,7 @@ impl JsonOAuth {
     }
 }
 
-const TOKEN_FILE: &str = ".config/reis-finance/access_token.json";
+const TOKEN_FILE: &str = "access_token.json";
 
 pub struct GoogleSheet {
     config: GoogleSheetConfig,
@@ -80,7 +77,7 @@ impl GoogleSheet {
 
         loop {
             if let Ok(file_content) =
-                std::fs::read_to_string(dirs::home_dir().unwrap().join(TOKEN_FILE))
+                std::fs::read_to_string(global_conf::get_config_dir().join(TOKEN_FILE))
             {
                 if let Ok(token) = serde_json::from_str::<sheets::AccessToken>(&file_content) {
                     let client = Client::new(
@@ -92,12 +89,12 @@ impl GoogleSheet {
                     );
 
                     if let Ok(token) = tokio_test::block_on(client.refresh_access_token()) {
-                        println!("refreshed token={token:?}");
+                        log::info!("refreshed token={token:?}");
                         if Some(false) == tokio_test::block_on(client.is_expired()) {
                             return Ok(client);
                         }
                     }
-                    println!("Can't refresh access token")
+                    log::info!("Can't refresh access token")
                 }
             }
 
@@ -139,7 +136,7 @@ impl GoogleSheet {
                 tokio_test::block_on(client.get_access_token(&caps["code"], &caps["state"]))
                     .unwrap();
             let contents = serde_json::to_string_pretty(&access_token)?;
-            std::fs::write(dirs::home_dir().unwrap().join(TOKEN_FILE), &contents)?;
+            std::fs::write(global_conf::get_config_dir().join(TOKEN_FILE), &contents)?;
         }
     }
 

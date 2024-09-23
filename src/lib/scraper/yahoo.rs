@@ -1,6 +1,6 @@
 use crate::schema::Column;
 use crate::schema::Currency;
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use chrono::{self, TimeZone};
 use yahoo_finance_api as yahoo;
@@ -183,8 +183,11 @@ impl IScraper for Yahoo {
                     )?,
                     &format!("{}d", period.interval_days),
                 )
-                .await
-                .with_context(|| format!("Failed to load {:?} with {:?}", &ticker, period))?;
+                .await;
+            let Ok(response) = response else {
+                log::info!("Failed to load {:?} with {:?}", &ticker, period);
+                continue;
+            };
 
             data.concat_quotes(self.quotes(&response, ticker, country.to_owned(), multiplier)?)?
                 .concat_splits(self.splits(&response, ticker)?)?

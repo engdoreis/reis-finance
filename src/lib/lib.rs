@@ -1,6 +1,7 @@
 pub mod broker;
 pub mod currency;
 pub mod dividends;
+pub mod global_conf;
 pub mod googlesheet;
 pub mod liquidated;
 pub mod perpetual_inventory;

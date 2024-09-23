@@ -4,8 +4,9 @@ use anyhow::Result;
 
 use polars::prelude::*;
 
-use reis_finance_lib::broker::{IBroker, Schwab, Trading212};
+use reis_finance_lib::broker::{self, IBroker, Schwab, Trading212};
 use reis_finance_lib::dividends::Dividends;
+use reis_finance_lib::global_conf;
 use reis_finance_lib::googlesheet::GoogleSheet;
 use reis_finance_lib::liquidated;
 use reis_finance_lib::portfolio::Portfolio;
@@ -47,6 +48,10 @@ struct Args {
     #[arg(long, default_value = "false")]
     cache: bool,
 
+    /// Whether to use the cache for prices.
+    #[arg(short, long, default_value = "false")]
+    update: bool,
+
     /// Filter-out transactions after the date.
     #[arg(short, long, value_parser = chrono::NaiveDate::from_str)]
     date: Option<chrono::NaiveDate>,
@@ -57,6 +62,10 @@ fn main() -> Result<()> {
     std::env::set_var("POLARS_FMT_MAX_COLS", "20"); // maximum number of columns shown when formatting DataFrames.
     std::env::set_var("POLARS_FMT_MAX_ROWS", "30"); // maximum number of rows shown when formatting DataFrames.
     std::env::set_var("POLARS_FMT_STR_LEN", "50"); // maximum number of characters printed per string value.
+
+    let _logger = flexi_logger::Logger::try_with_str("info")?
+        .log_to_file(flexi_logger::FileSpec::default().directory(global_conf::get_log_dir()))
+        .start()?;
 
     let args: Args = Args::parse();
     let mut orders: Vec<DataFrame> = Vec::new();
@@ -69,8 +78,18 @@ fn main() -> Result<()> {
 
     if let Some(trading212_orders) = &args.trading212_orders {
         println!("Loading trading 212 orders...");
-        let broker = Trading212::default();
-        orders.push(broker.load_from_dir(trading212_orders.as_path())?);
+
+        let config = broker::trading212::ApiConfig::from_file(
+            &global_conf::get_config_dir().join("trading212_config.json"),
+        );
+
+        let broker = Trading212::new(schema::Currency::GBP, Some(config));
+
+        orders.push(if args.update {
+            broker.load_from_api(Some(trading212_orders.as_path()))?
+        } else {
+            broker.load_from_dir(trading212_orders.as_path())?
+        });
     }
 
     if !orders.is_empty() {
@@ -82,10 +101,7 @@ fn main() -> Result<()> {
 
 fn execute(orders: Vec<impl IntoLazy>, args: &Args) -> Result<()> {
     let mut scraper = if args.cache {
-        either::Right(Cache::new(
-            Yahoo::new(),
-            dirs::home_dir().unwrap().join(".config/reis-finance/cache"),
-        ))
+        either::Right(Cache::new(Yahoo::new(), global_conf::get_cache_dir()))
     } else {
         either::Left(Yahoo::new())
     };

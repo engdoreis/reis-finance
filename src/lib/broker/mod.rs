@@ -21,7 +21,13 @@ pub trait IBroker {
             let new = self.load_from_csv(file?.as_path())?.lazy();
             frame = concat([frame, new], Default::default())?;
         }
-        Ok(frame.collect()?)
+        Ok(frame
+            .unique(None, UniqueKeepStrategy::First)
+            .sort(
+                [Date.as_str(), Ticker.as_str(), Price.as_str()],
+                Default::default(),
+            )
+            .collect()?)
     }
 
     fn sanitize(frame: impl IntoLazy) -> LazyFrame {
@@ -34,4 +40,6 @@ pub trait IBroker {
             SortMultipleOptions::new().with_order_descending(false),
         )
     }
+
+    fn load_from_api(&self, path: Option<&Path>) -> Result<DataFrame>;
 }

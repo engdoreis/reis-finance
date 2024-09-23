@@ -2,6 +2,7 @@
 name = "reis-finance"
 version = "0.1.1"
 edition = "2021"
+resolver = "2"
 
 [lib]
 name = "reis_finance_lib"
@@ -23,11 +24,15 @@ chrono = {version = "0.4.37", features = ["now"] }
 clap = { version = "4.5.0", features = ["derive"] }
 dirs = "5"
 either = "1.13.0"
+flexi_logger = "0.29.0"
 glob = "0.3.1"
 itertools = "0.12.1"
+log = "0.4.22"
 polars = {version = "0.39.2", features = ["lazy", "strings", "cum_agg", "dtype-struct", "round_series", "json", "regex", "pivot", "is_in"]}
 polars-ops = "0.39.2"
 regex = "1.10.4"
+reqwest = { version = "0.12.7", features = ["blocking"] }
+schwab_api = "0.0.2"
 serde = "1.0.197"
 serde_json = "1.0.114"
 sheets = "0.7.0"
@@ -36,4 +41,5 @@ temp-file = "0.1.8"
 time = {version="0.3.31", features = ["parsing", "formatting"]}
 tokio = "1.37.0"
 tokio-test = "0.4.3"
-yahoo_finance_api =  { git = "https://github.com/xemwebe/yahoo_finance_api.git", rev = "cf6bceb4ac9eabdddf915f353711dffbc6243722" }
+trading212 = "0.2.10"
+yahoo_finance_api = "2.2.1"

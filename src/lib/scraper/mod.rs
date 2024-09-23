@@ -78,9 +78,9 @@ impl ScraperData {
     }
 
     pub fn debug(&self) {
-        println!("{:?}", self.quotes);
-        println!("{:?}", self.splits);
-        println!("{:?}", self.dividends);
+        log::info!("{:?}", self.quotes);
+        log::info!("{:?}", self.splits);
+        log::info!("{:?}", self.dividends);
     }
 }
 
